@@ -59,11 +59,27 @@ class SaleRepository(BaseRepository):
                 )
                 item.id = cursor.lastrowid
 
-    def _delete_sale_items(self, sale_id):
-        with self.db_manager.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM sale_items WHERE sale_id = ?", (sale_id,))
+    def remove_by_id(self, sale_id):
+        sale = self.get_by_id(sale_id)
 
+        if sale is None:
+           return None
+
+        cursor = self.db.get_cursor()
+
+        cursor.execute(
+        "DELETE FROM sale_items WHERE sale_id = ?",
+        (sale_id,)
+    )
+
+        cursor.execute(
+        "DELETE FROM sales WHERE id = ?",
+        (sale_id,)
+    )
+
+        self.db.commit()
+
+        return sale
     def get_items_by_sale_id(self, sale_id):
         with self.db_manager.get_connection() as conn:
             cursor = conn.cursor()
