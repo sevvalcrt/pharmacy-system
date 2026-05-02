@@ -53,6 +53,27 @@ class PrescriptionRepository(BaseRepository):
                     (prescription.id, item.medicine_id, item.quantity)
                 )
                 item.id = cursor.lastrowid
+    def remove_by_id(self, prescription_id):
+        prescription = self.get_by_id(prescription_id)
+
+        if prescription is None:
+            return None
+
+        with self.db_manager.get_connection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute(
+                "DELETE FROM prescription_items WHERE prescription_id = ?",
+                (prescription_id,)
+            )
+
+            cursor.execute(
+                "DELETE FROM prescriptions WHERE id = ?",
+                (prescription_id,)
+            )
+
+        return prescription
+
 
     def _delete_prescription_items(self, prescription_id):
         with self.db_manager.get_connection() as conn:

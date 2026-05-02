@@ -1,1 +1,1 @@
-__pycache__/ *.pyc .env
+__pycache__/ *.pyc pharmacy.db .env .vscode/
