@@ -34,11 +34,7 @@ class SaleFrame:
         tk.Button(top, text="← Back", width=8, command=self.back).pack(side="left")
         tk.Button(top, text="Logout", width=8, command=self.logout).pack(side="left", padx=5)
 
-        tk.Label(
-            self.frame,
-            text="New Sale",
-            font=("Arial", 16, "bold")
-        ).pack(pady=5)
+        tk.Label(self.frame, text="New Sale", font=("Arial", 16, "bold")).pack(pady=5)
 
         form = tk.LabelFrame(self.frame, text="Sale Form", padx=8, pady=6)
         form.pack(fill="x", pady=5)
@@ -55,23 +51,15 @@ class SaleFrame:
         self.qty_entry = tk.Entry(form, width=45)
         self.qty_entry.grid(row=2, column=1, pady=3)
 
-        tk.Button(
-            form,
-            text="Add to Sale",
-            width=18,
-            command=self.add_item
-        ).grid(row=3, column=0, columnspan=2, pady=6)
+        tk.Button(form, text="Add to Sale", width=18, command=self.add_item).grid(
+            row=3, column=0, columnspan=2, pady=6
+        )
 
         table_frame = tk.LabelFrame(self.frame, text="Sale Items", padx=8, pady=6)
         table_frame.pack(fill="both", expand=True, pady=5)
 
         columns = ("medicine", "qty", "unit_price", "subtotal", "rx")
-        self.table = ttk.Treeview(
-            table_frame,
-            columns=columns,
-            show="headings",
-            height=6
-        )
+        self.table = ttk.Treeview(table_frame, columns=columns, show="headings", height=6)
 
         self.table.heading("medicine", text="Medicine")
         self.table.heading("qty", text="Qty")
@@ -197,6 +185,23 @@ class SaleFrame:
                     messagebox.showerror("Error", "Quantity exceeds prescription limit.")
                     return
 
+            for cart_item in self.cart:
+                if cart_item["medicine"].id == medicine.id:
+                    new_quantity = cart_item["quantity"] + quantity
+
+                    if not medicine.is_available(new_quantity):
+                        messagebox.showerror("Error", "Total quantity exceeds stock.")
+                        return
+
+                    cart_item["quantity"] = new_quantity
+                    cart_item["subtotal"] = medicine.unit_price * new_quantity
+
+                    self.refresh_table()
+                    self.qty_entry.delete(0, tk.END)
+                    self.update_total()
+                    self.calculate_change()
+                    return
+
             subtotal = medicine.unit_price * quantity
 
             self.cart.append({
@@ -207,24 +212,32 @@ class SaleFrame:
                 "prescription_id": prescription_id
             })
 
-            self.table.insert(
-                "",
-                "end",
-                values=(
-                    medicine.name,
-                    quantity,
-                    f"{medicine.unit_price:.2f}",
-                    f"{subtotal:.2f}",
-                    "Yes" if medicine.requires_prescription else "No"
-                )
-            )
-
+            self.refresh_table()
             self.qty_entry.delete(0, tk.END)
             self.update_total()
             self.calculate_change()
 
         except Exception as e:
             messagebox.showerror("Error", str(e))
+
+    def refresh_table(self):
+        for row in self.table.get_children():
+            self.table.delete(row)
+
+        for item in self.cart:
+            medicine = item["medicine"]
+
+            self.table.insert(
+                "",
+                "end",
+                values=(
+                    medicine.name,
+                    item["quantity"],
+                    f"{item['unit_price']:.2f}",
+                    f"{item['subtotal']:.2f}",
+                    "Yes" if medicine.requires_prescription else "No"
+                )
+            )
 
     def get_total(self):
         return sum(item["subtotal"] for item in self.cart)
@@ -249,30 +262,44 @@ class SaleFrame:
             self.change_label.config(text="Change: 0.00 TL")
 
     def calculate_change(self, event=None):
+        method = self.method_combo.get()
+        total = self.get_total()
+
+        if method in ("CARD", "TRANSFER"):
+            self.change_label.config(text="Change: 0.00 TL")
+            return
+
+        paid_text = self.paid_entry.get().strip()
+
+        if not paid_text:
+            self.change_label.config(text="Change: 0.00 TL")
+            return
+
         try:
-            method = self.method_combo.get()
-            total = self.get_total()
-
-            if method in ("CARD", "TRANSFER"):
-                self.change_label.config(text="Change: 0.00 TL")
-                return
-
-            paid_text = self.paid_entry.get().strip()
-
-            if not paid_text:
-                self.change_label.config(text="Change: 0.00 TL")
-                return
-
             paid = float(paid_text)
-            change = paid - total
 
-            if change < 0:
-                self.change_label.config(text=f"Missing: {-change:.2f} TL")
-            else:
-                self.change_label.config(text=f"Change: {change:.2f} TL")
+            temp_payment = Payment(
+                None,
+                1,
+                paid,
+                method
+            )
+
+            change = temp_payment.calculate_change(total)
+            self.change_label.config(text=f"Change: {change:.2f} TL")
 
         except ValueError:
-            self.change_label.config(text="Change: 0.00 TL")
+            try:
+                paid = float(paid_text)
+                missing = total - paid
+
+                if missing > 0:
+                    self.change_label.config(text=f"Missing: {missing:.2f} TL")
+                else:
+                    self.change_label.config(text="Change: 0.00 TL")
+
+            except Exception:
+                self.change_label.config(text="Change: 0.00 TL")
 
     def complete_sale(self):
         try:
@@ -291,16 +318,8 @@ class SaleFrame:
                     return
 
                 paid = float(paid_text)
-
-                if paid < total:
-                    messagebox.showerror("Error", "Paid amount is insufficient.")
-                    return
-
-                change = paid - total
-
             else:
                 paid = total
-                change = 0.0
 
             prescription_id = None
 
@@ -309,7 +328,7 @@ class SaleFrame:
                     prescription_id = item["prescription_id"]
                     break
 
-            sale = Sale(None, customer_id=1, prescription_id=prescription_id)
+            sale = Sale(None, customer_id=None, prescription_id=prescription_id)
             self.sale_repo.add(sale)
 
             for item in self.cart:
@@ -331,13 +350,8 @@ class SaleFrame:
             sale.complete_sale()
             self.sale_repo.update(sale.id, sale)
 
-            payment = Payment(
-                None,
-                sale.id,
-                paid,
-                method
-            )
-
+            payment = Payment(None, sale.id, paid, method)
+            change = payment.calculate_change(total)
             self.payment_repo.add(payment)
 
             messagebox.showinfo(

@@ -58,6 +58,7 @@ class SaleRepository(BaseRepository):
                     (sale.id, item.medicine_id, item.quantity, item.unit_price, item.subtotal)
                 )
                 item.id = cursor.lastrowid
+                
     def _delete_sale_items(self, sale_id):
         with self.db_manager.get_connection() as conn:
             cursor = conn.cursor()
