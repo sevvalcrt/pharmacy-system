@@ -5,9 +5,11 @@ from tkinter import ttk
 from repositories.medicine_repository import MedicineRepository
 from repositories.sales_repository import SaleRepository
 from repositories.prescription_repository import PrescriptionRepository
+from repositories.payment_repository import PaymentRepository
 
 from sale import Sale
 from sale_item import SaleItem
+from payment import Payment
 
 
 class SaleFrame:
@@ -19,6 +21,7 @@ class SaleFrame:
         self.medicine_repo = MedicineRepository(self.db)
         self.sale_repo = SaleRepository(self.db)
         self.prescription_repo = PrescriptionRepository(self.db)
+        self.payment_repo = PaymentRepository(self.db)
 
         self.cart = []
 
@@ -95,6 +98,7 @@ class SaleFrame:
         payment_frame.pack(fill="x", pady=4)
 
         tk.Label(payment_frame, text="Method").grid(row=0, column=0, padx=4)
+
         self.method_combo = ttk.Combobox(
             payment_frame,
             values=["CASH", "CARD", "TRANSFER"],
@@ -106,6 +110,7 @@ class SaleFrame:
         self.method_combo.bind("<<ComboboxSelected>>", self.payment_method_changed)
 
         tk.Label(payment_frame, text="Paid").grid(row=0, column=2, padx=4)
+
         self.paid_entry = tk.Entry(payment_frame, width=12)
         self.paid_entry.grid(row=0, column=3, padx=4)
         self.paid_entry.bind("<KeyRelease>", self.calculate_change)
@@ -279,13 +284,20 @@ class SaleFrame:
             method = self.method_combo.get()
 
             if method == "CASH":
-                paid = float(self.paid_entry.get())
+                paid_text = self.paid_entry.get().strip()
+
+                if not paid_text:
+                    messagebox.showerror("Error", "Enter paid amount.")
+                    return
+
+                paid = float(paid_text)
 
                 if paid < total:
                     messagebox.showerror("Error", "Paid amount is insufficient.")
                     return
 
                 change = paid - total
+
             else:
                 paid = total
                 change = 0.0
@@ -319,9 +331,19 @@ class SaleFrame:
             sale.complete_sale()
             self.sale_repo.update(sale.id, sale)
 
+            payment = Payment(
+                None,
+                sale.id,
+                paid,
+                method
+            )
+
+            self.payment_repo.add(payment)
+
             messagebox.showinfo(
                 "Success",
                 f"Sale completed.\n"
+                f"Payment saved to database.\n"
                 f"Payment Method: {method}\n"
                 f"Total: {total:.2f} TL\n"
                 f"Paid: {paid:.2f} TL\n"
@@ -329,6 +351,7 @@ class SaleFrame:
             )
 
             self.frame.destroy()
+
             from gui.cashier_dashboard import CashierDashboard
             CashierDashboard(self.root, self.user, self.db)
 
@@ -337,10 +360,12 @@ class SaleFrame:
 
     def back(self):
         self.frame.destroy()
+
         from gui.cashier_dashboard import CashierDashboard
         CashierDashboard(self.root, self.user, self.db)
 
     def logout(self):
         self.frame.destroy()
+
         from gui.login_window import LoginWindow
         LoginWindow(self.root, self.db)

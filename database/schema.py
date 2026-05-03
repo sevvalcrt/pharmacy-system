@@ -45,8 +45,8 @@ def initialize_schema(db_manager: DatabaseManager | None = None) -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 category_id INTEGER,
-                unit_price REAL NOT NULL,
-                stock INTEGER NOT NULL DEFAULT 0,
+                unit_price REAL NOT NULL CHECK (unit_price > 0),
+                stock INTEGER NOT NULL DEFAULT 0 CHECK (stock >= 0),
                 expiry_date TEXT,
                 requires_prescription INTEGER NOT NULL DEFAULT 0,
                 FOREIGN KEY (category_id) REFERENCES categories(id)
@@ -68,7 +68,7 @@ def initialize_schema(db_manager: DatabaseManager | None = None) -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 prescription_id INTEGER NOT NULL,
                 medicine_id INTEGER NOT NULL,
-                quantity INTEGER NOT NULL,
+                quantity INTEGER NOT NULL CHECK (quantity > 0),
                 FOREIGN KEY (prescription_id) REFERENCES prescriptions(id),
                 FOREIGN KEY (medicine_id) REFERENCES medicines(id)
             )
@@ -79,7 +79,7 @@ def initialize_schema(db_manager: DatabaseManager | None = None) -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 customer_id INTEGER,
                 prescription_id INTEGER,
-                total_amount REAL NOT NULL,
+                total_amount REAL NOT NULL CHECK (total_amount >= 0),
                 sale_date TEXT NOT NULL,
                 is_completed INTEGER NOT NULL DEFAULT 1,
                 FOREIGN KEY (customer_id) REFERENCES customers(id),
@@ -92,10 +92,31 @@ def initialize_schema(db_manager: DatabaseManager | None = None) -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 sale_id INTEGER NOT NULL,
                 medicine_id INTEGER NOT NULL,
-                quantity INTEGER NOT NULL,
-                unit_price REAL NOT NULL,
-                subtotal REAL NOT NULL,
+                quantity INTEGER NOT NULL CHECK (quantity > 0),
+                unit_price REAL NOT NULL CHECK (unit_price > 0),
+                subtotal REAL NOT NULL CHECK (subtotal >= 0),
                 FOREIGN KEY (sale_id) REFERENCES sales(id),
+                FOREIGN KEY (medicine_id) REFERENCES medicines(id)
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS payments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sale_id INTEGER NOT NULL,
+                amount REAL NOT NULL CHECK (amount > 0),
+                method TEXT NOT NULL CHECK (method IN ('CASH', 'CARD', 'TRANSFER')),
+                FOREIGN KEY (sale_id) REFERENCES sales(id)
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS inventory (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                medicine_id INTEGER NOT NULL,
+                quantity_change INTEGER NOT NULL CHECK (quantity_change != 0),
+                action_type TEXT NOT NULL CHECK (action_type IN ('IN', 'OUT', 'RETURN', 'ADJUST')),
+                action_date TEXT NOT NULL,
                 FOREIGN KEY (medicine_id) REFERENCES medicines(id)
             )
         """)
