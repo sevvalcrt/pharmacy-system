@@ -2,44 +2,73 @@ import tkinter as tk
 from tkinter import messagebox
 
 from database.connection import DatabaseManager
-from gui.dashboard_window import DashboardWindow
+from database.schema import initialize_schema
+from repositories.user_repository import UserRepository
+
+from gui.admin_dashboard import AdminDashboard
+from gui.pharmacist_dashboard import PharmacistDashboard
+from gui.cashier_dashboard import CashierDashboard
 
 
 class LoginWindow:
-    def __init__(self, db_manager: DatabaseManager) -> None:
-        self.db_manager = db_manager
-        self.root = tk.Tk()
-        self.root.title("Pharmacy System - Login")
-        self.root.geometry("320x200")
+    def __init__(self, root, db=None):
+        self.root = root
 
-        tk.Label(self.root, text="Username").pack(pady=(20, 5))
-        self.username_entry = tk.Entry(self.root)
-        self.username_entry.pack()
+        self.db = db or DatabaseManager()
+        initialize_schema(self.db)
 
-        tk.Label(self.root, text="Password").pack(pady=(10, 5))
-        self.password_entry = tk.Entry(self.root, show="*")
-        self.password_entry.pack()
-
-        tk.Button(self.root, text="Login", command=self._login).pack(pady=20)
-
-    def _login(self) -> None:
-        username = self.username_entry.get().strip()
-        password = self.password_entry.get().strip()
-
-        with self.db_manager.get_connection() as conn:
+        # Test customer eklenir.
+        # Prescription oluştururken Customer ID = 1 kullanabilmen için.
+        with self.db.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT id FROM users WHERE username = ? AND password = ?",
-                (username, password),
+                "INSERT OR IGNORE INTO customers(id, full_name, phone) VALUES (?, ?, ?)",
+                (1, "Test Customer", "05551234567")
             )
-            user = cursor.fetchone()
 
-        if not user:
-            messagebox.showerror("Hata", "Kullanici adi veya sifre hatali.")
+        self.user_repo = UserRepository(self.db)
+
+        self.frame = tk.Frame(self.root)
+        self.frame.pack(expand=True)
+
+        tk.Label(
+            self.frame,
+            text="Pharmacy Medicine System",
+            font=("Arial", 20, "bold")
+        ).pack(pady=20)
+
+        tk.Label(self.frame, text="Username").pack()
+        self.username_entry = tk.Entry(self.frame, width=30)
+        self.username_entry.pack(pady=5)
+
+        tk.Label(self.frame, text="Password").pack()
+        self.password_entry = tk.Entry(self.frame, width=30, show="*")
+        self.password_entry.pack(pady=5)
+
+        tk.Button(
+            self.frame,
+            text="Login",
+            width=20,
+            command=self.login
+        ).pack(pady=20)
+
+    def login(self):
+        username = self.username_entry.get()
+        password = self.password_entry.get()
+
+        user = self.user_repo.login(username, password)
+
+        if user is None:
+            messagebox.showerror("Error", "Invalid username or password.")
             return
 
-        self.root.destroy()
-        DashboardWindow(self.db_manager).run()
+        self.frame.destroy()
 
-    def run(self) -> None:
-        self.root.mainloop()
+        if user.role_id == 1:
+            AdminDashboard(self.root, user, self.db)
+        elif user.role_id == 2:
+            PharmacistDashboard(self.root, user, self.db)
+        elif user.role_id == 3:
+            CashierDashboard(self.root, user, self.db)
+        else:
+            messagebox.showerror("Error", "Unknown role.")
