@@ -21,3 +21,10 @@ class DatabaseManager:
             raise
         finally:
             connection.close()
+
+
+db_manager = DatabaseManager()
+
+
+def get_connection():
+    return db_manager.get_connection()
