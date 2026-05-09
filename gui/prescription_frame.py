@@ -7,6 +7,7 @@ from prescription_item import PrescriptionItem
 
 from repositories.prescription_repository import PrescriptionRepository
 from repositories.medicine_repository import MedicineRepository
+from repositories.customer_repository import CustomerRepository
 
 
 class PrescriptionFrame:
@@ -17,6 +18,7 @@ class PrescriptionFrame:
 
         self.prescription_repo = PrescriptionRepository(self.db)
         self.medicine_repo = MedicineRepository(self.db)
+        self.customer_repo = CustomerRepository(self.db)
 
         self.frame = tk.Frame(self.root, padx=20, pady=15)
         self.frame.pack(expand=True, fill="both")
@@ -42,13 +44,12 @@ class PrescriptionFrame:
         right = tk.LabelFrame(content, text="Prescription List", padx=10, pady=10)
         right.pack(side="right", expand=True, fill="both")
 
-        # CREATE PRESCRIPTION
-        tk.Label(left, text="Customer ID").grid(row=0, column=0, sticky="w", pady=6)
-        self.customer_id_entry = tk.Entry(left, width=25)
-        self.customer_id_entry.grid(row=0, column=1, pady=6)
+        tk.Label(left, text="Customer").grid(row=0, column=0, sticky="w", pady=6)
+        self.customer_combo = ttk.Combobox(left, state="readonly", width=28)
+        self.customer_combo.grid(row=0, column=1, pady=6)
 
         tk.Label(left, text="Doctor Name").grid(row=1, column=0, sticky="w", pady=6)
-        self.doctor_entry = tk.Entry(left, width=25)
+        self.doctor_entry = tk.Entry(left, width=31)
         self.doctor_entry.grid(row=1, column=1, pady=6)
 
         tk.Button(
@@ -62,7 +63,6 @@ class PrescriptionFrame:
             row=3, column=0, columnspan=2, sticky="ew", pady=10
         )
 
-        # ADD MEDICINE TO PRESCRIPTION
         tk.Label(left, text="Prescription").grid(row=4, column=0, sticky="w", pady=6)
         self.prescription_combo = ttk.Combobox(left, state="readonly", width=28)
         self.prescription_combo.grid(row=4, column=1, pady=6)
@@ -89,7 +89,6 @@ class PrescriptionFrame:
             command=self.delete_selected_prescription
         ).grid(row=8, column=0, columnspan=2, pady=5)
 
-        # PRESCRIPTION TABLE WITH SCROLL
         columns = ("id", "customer", "doctor", "date", "count")
 
         prescription_table_frame = tk.Frame(right)
@@ -133,21 +132,20 @@ class PrescriptionFrame:
         self.table.heading("count", text="Medicine Count")
 
         self.table.column("id", width=40, anchor="center")
-        self.table.column("customer", width=80, anchor="center")
+        self.table.column("customer", width=150)
         self.table.column("doctor", width=120)
         self.table.column("date", width=150, anchor="center")
         self.table.column("count", width=100, anchor="center")
 
         self.table.bind("<<TreeviewSelect>>", self.select_prescription_from_table)
 
-        # ITEM TABLE WITH SCROLL
         item_frame = tk.LabelFrame(right, text="Prescription Items", padx=10, pady=10)
         item_frame.pack(expand=True, fill="both", pady=10)
 
         item_table_frame = tk.Frame(item_frame)
         item_table_frame.pack(expand=True, fill="both")
 
-        item_columns = ("item_id", "prescription_id", "medicine_id", "quantity")
+        item_columns = ("item_id", "prescription_id", "medicine", "quantity")
 
         self.item_table = ttk.Treeview(
             item_table_frame,
@@ -181,22 +179,43 @@ class PrescriptionFrame:
 
         self.item_table.heading("item_id", text="Item ID")
         self.item_table.heading("prescription_id", text="Prescription ID")
-        self.item_table.heading("medicine_id", text="Medicine ID")
+        self.item_table.heading("medicine", text="Medicine")
         self.item_table.heading("quantity", text="Quantity")
 
         self.item_table.column("item_id", width=70, anchor="center")
         self.item_table.column("prescription_id", width=110, anchor="center")
-        self.item_table.column("medicine_id", width=100, anchor="center")
+        self.item_table.column("medicine", width=160)
         self.item_table.column("quantity", width=80, anchor="center")
 
-        self.load_prescriptions()
+        self.load_customers()
         self.load_medicines()
+        self.load_prescriptions()
+
+    def load_customers(self):
+        customers = self.customer_repo.get_all()
+
+        self.customer_map = {
+            f"{c.full_name} (ID:{c.id})": c.id
+            for c in customers
+        }
+
+        self.customer_combo["values"] = list(self.customer_map.keys())
+
+        if self.customer_map:
+            self.customer_combo.current(0)
+
+    def get_customer_name_by_id(self, customer_id):
+        for text, cid in self.customer_map.items():
+            if cid == customer_id:
+                return text.split(" (ID:")[0]
+
+        return f"Customer {customer_id}"
 
     def load_prescription_combo(self):
         prescriptions = self.prescription_repo.get_all()
 
         self.prescription_map = {
-            f"ID:{p.id} | Customer:{p.customer_id} | {p.doctor_name}": p.id
+            f"{self.get_customer_name_by_id(p.customer_id)} | {p.doctor_name}": p.id
             for p in prescriptions
         }
 
@@ -209,7 +228,12 @@ class PrescriptionFrame:
         medicines = self.medicine_repo.get_all()
 
         self.medicine_map = {
-            f"{m.name} (ID:{m.id})": m.id
+            m.name: m.id
+            for m in medicines
+        }
+
+        self.medicine_name_map = {
+            m.id: m.name
             for m in medicines
         }
 
@@ -220,7 +244,13 @@ class PrescriptionFrame:
 
     def create_prescription(self):
         try:
-            customer_id = int(self.customer_id_entry.get())
+            selected_customer = self.customer_combo.get()
+
+            if not selected_customer:
+                messagebox.showerror("Error", "Select a customer.")
+                return
+
+            customer_id = self.customer_map[selected_customer]
             doctor_name = self.doctor_entry.get()
 
             prescription = Prescription(None, customer_id, doctor_name)
@@ -228,9 +258,7 @@ class PrescriptionFrame:
 
             messagebox.showinfo("Success", "Prescription created.")
 
-            self.customer_id_entry.delete(0, tk.END)
             self.doctor_entry.delete(0, tk.END)
-
             self.load_prescriptions()
 
         except Exception as e:
@@ -285,7 +313,7 @@ class PrescriptionFrame:
                 "end",
                 values=(
                     p.id,
-                    p.customer_id,
+                    self.get_customer_name_by_id(p.customer_id),
                     p.doctor_name,
                     p.created_at,
                     p.total_medicines()
@@ -304,13 +332,18 @@ class PrescriptionFrame:
             return
 
         for item in prescription.items:
+            medicine_name = self.medicine_name_map.get(
+                item.medicine_id,
+                f"Medicine {item.medicine_id}"
+            )
+
             self.item_table.insert(
                 "",
                 "end",
                 values=(
                     item.id,
                     item.prescription_id,
-                    item.medicine_id,
+                    medicine_name,
                     item.quantity
                 )
             )

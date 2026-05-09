@@ -10,6 +10,7 @@ from repositories.payment_repository import PaymentRepository
 from sale import Sale
 from sale_item import SaleItem
 from payment import Payment
+from invoice import Invoice
 
 
 class SaleFrame:
@@ -34,7 +35,11 @@ class SaleFrame:
         tk.Button(top, text="← Back", width=8, command=self.back).pack(side="left")
         tk.Button(top, text="Logout", width=8, command=self.logout).pack(side="left", padx=5)
 
-        tk.Label(self.frame, text="New Sale", font=("Arial", 16, "bold")).pack(pady=5)
+        tk.Label(
+            self.frame,
+            text="New Sale",
+            font=("Arial", 16, "bold")
+        ).pack(pady=5)
 
         form = tk.LabelFrame(self.frame, text="Sale Form", padx=8, pady=6)
         form.pack(fill="x", pady=5)
@@ -51,15 +56,23 @@ class SaleFrame:
         self.qty_entry = tk.Entry(form, width=45)
         self.qty_entry.grid(row=2, column=1, pady=3)
 
-        tk.Button(form, text="Add to Sale", width=18, command=self.add_item).grid(
-            row=3, column=0, columnspan=2, pady=6
-        )
+        tk.Button(
+            form,
+            text="Add to Sale",
+            width=18,
+            command=self.add_item
+        ).grid(row=3, column=0, columnspan=2, pady=6)
 
         table_frame = tk.LabelFrame(self.frame, text="Sale Items", padx=8, pady=6)
         table_frame.pack(fill="both", expand=True, pady=5)
 
         columns = ("medicine", "qty", "unit_price", "subtotal", "rx")
-        self.table = ttk.Treeview(table_frame, columns=columns, show="headings", height=6)
+        self.table = ttk.Treeview(
+            table_frame,
+            columns=columns,
+            show="headings",
+            height=6
+        )
 
         self.table.heading("medicine", text="Medicine")
         self.table.heading("qty", text="Qty")
@@ -354,14 +367,33 @@ class SaleFrame:
             change = payment.calculate_change(total)
             self.payment_repo.add(payment)
 
+            invoice_items = []
+
+            for item in self.cart:
+                medicine = item["medicine"]
+
+                invoice_items.append({
+                    "name": medicine.name,
+                    "quantity": item["quantity"],
+                    "subtotal": item["subtotal"]
+                })
+
+            invoice = Invoice(
+                invoice_id=None,
+                sale_id=sale.id,
+                invoice_number=f"INV-{sale.id}",
+                customer_name="Walk-in Customer",
+                cashier_name=self.user.full_name,
+                items=invoice_items,
+                total_amount=total,
+                paid_amount=paid,
+                change_amount=change,
+                payment_method=method
+            )
+
             messagebox.showinfo(
-                "Success",
-                f"Sale completed.\n"
-                f"Payment saved to database.\n"
-                f"Payment Method: {method}\n"
-                f"Total: {total:.2f} TL\n"
-                f"Paid: {paid:.2f} TL\n"
-                f"Change: {change:.2f} TL"
+                "Invoice",
+                invoice.generate_text()
             )
 
             self.frame.destroy()

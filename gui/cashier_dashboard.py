@@ -32,6 +32,13 @@ class CashierDashboard:
 
         tk.Button(
             self.frame,
+            text="Manage Customers",
+            width=25,
+            command=self.open_customers
+        ).pack(pady=5)
+
+        tk.Button(
+            self.frame,
             text="Logout",
             width=25,
             command=self.logout
@@ -46,6 +53,11 @@ class CashierDashboard:
         self.frame.destroy()
         from gui.sales_history_frame import SalesHistoryFrame
         SalesHistoryFrame(self.root, self.user, self.db)
+
+    def open_customers(self):
+        self.frame.destroy()
+        from gui.customer_frame import CustomerFrame
+        CustomerFrame(self.root, self.user, self.db)
 
     def logout(self):
         self.frame.destroy()
