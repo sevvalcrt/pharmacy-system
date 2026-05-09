@@ -7,7 +7,7 @@ class InventoryRepository(BaseRepository):
         super().__init__(
             table_name="inventory",
             model_class=Inventory,
-            columns=["id", "medicine_id", "quantity_change", "action_type", "action_date"],
+            columns=["id", "medicine_id", "sale_id", "quantity_change", "action_type", "action_date"],
             db_manager=db_manager
         )
 
@@ -15,6 +15,7 @@ class InventoryRepository(BaseRepository):
         return Inventory(
             inventory_id=row["id"],
             medicine_id=row["medicine_id"],
+            sale_id=row["sale_id"],
             quantity_change=row["quantity_change"],
             action_type=row["action_type"],
             action_date=row["action_date"]
@@ -24,6 +25,7 @@ class InventoryRepository(BaseRepository):
         return {
             "id": item.id,
             "medicine_id": item.medicine_id,
+            "sale_id": item.sale_id,
             "quantity_change": item.quantity_change,
             "action_type": item.action_type,
             "action_date": item.action_date

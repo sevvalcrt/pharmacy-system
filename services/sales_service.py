@@ -12,14 +12,16 @@ class SalesService:
         sale_repo,
         prescription_repo,
         payment_repo,
-        inventory_repo=None
+        inventory_repo=None,
+        invoice_repo=None
     ):
         self.medicine_repo = medicine_repo
         self.sale_repo = sale_repo
         self.prescription_repo = prescription_repo
         self.payment_repo = payment_repo
         self.inventory_repo = inventory_repo
-
+        self.invoice_repo = invoice_repo
+        
     def validate_medicine_for_cart(self, medicine, quantity, prescription_id):
         quantity = int(quantity)
 
@@ -83,7 +85,7 @@ class SalesService:
 
     def get_prescription_id_from_cart(self, cart):
         for item in cart:
-            if item["prescription_id"] is not None:
+            if item.get("prescription_id") is not None:
                 return item["prescription_id"]
         return None
 
@@ -107,9 +109,16 @@ class SalesService:
 
         prescription_id = self.get_prescription_id_from_cart(cart)
 
+        customer_id = None
+
+        if prescription_id is not None:
+            prescription = self.prescription_repo.get_by_id(prescription_id)
+            if prescription is not None:
+                customer_id = prescription.customer_id
+
         sale = Sale(
             None,
-            customer_id=None,
+            customer_id=customer_id,
             prescription_id=prescription_id
         )
 
@@ -142,7 +151,8 @@ class SalesService:
                     None,
                     medicine.id,
                     -cart_item["quantity"],
-                    "OUT"
+                    "OUT",
+                    sale_id=sale.id
                 )
                 self.inventory_repo.add(inventory)
 
@@ -174,5 +184,7 @@ class SalesService:
             change_amount=change,
             payment_method=method
         )
+        if self.invoice_repo is not None:
+            self.invoice_repo.add(invoice)
 
         return invoice

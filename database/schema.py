@@ -109,15 +109,32 @@ def initialize_schema(db_manager: DatabaseManager | None = None) -> None:
                 FOREIGN KEY (sale_id) REFERENCES sales(id)
             )
         """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS invoices (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sale_id INTEGER NOT NULL UNIQUE,
+                invoice_number TEXT NOT NULL UNIQUE,
+                customer_name TEXT,
+                cashier_name TEXT,
+                total_amount REAL NOT NULL CHECK (total_amount >= 0),
+                paid_amount REAL NOT NULL CHECK (paid_amount >= 0),
+                change_amount REAL NOT NULL CHECK (change_amount >= 0),
+                payment_method TEXT NOT NULL CHECK (payment_method IN ('CASH', 'CARD', 'TRANSFER')),
+                issued_at TEXT NOT NULL,
+                FOREIGN KEY (sale_id) REFERENCES sales(id)
+            )
+        """)
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS inventory (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 medicine_id INTEGER NOT NULL,
+                sale_id INTEGER,
                 quantity_change INTEGER NOT NULL CHECK (quantity_change != 0),
                 action_type TEXT NOT NULL CHECK (action_type IN ('IN', 'OUT', 'RETURN', 'ADJUST')),
                 action_date TEXT NOT NULL,
-                FOREIGN KEY (medicine_id) REFERENCES medicines(id)
+                FOREIGN KEY (medicine_id) REFERENCES medicines(id),
+                FOREIGN KEY (sale_id) REFERENCES sales(id)
             )
         """)
 
@@ -130,6 +147,8 @@ def initialize_schema(db_manager: DatabaseManager | None = None) -> None:
             "INSERT OR IGNORE INTO categories(id, name) VALUES (?, ?)",
             [(1, "Painkiller"), (2, "Antibiotic"), (3, "Vitamin")]
         )
+
+        
 
         cursor.execute("""
             INSERT OR IGNORE INTO users(id, full_name, username, password, role_id)
