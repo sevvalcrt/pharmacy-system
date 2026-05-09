@@ -135,3 +135,7 @@ def initialize_schema(db_manager: DatabaseManager | None = None) -> None:
             INSERT OR IGNORE INTO users(id, full_name, username, password, role_id)
             VALUES (1, 'System Admin', 'admin', '123456', 1)
         """)
+
+if __name__ == "__main__":
+    initialize_schema()
+    print("Database schema initialized successfully.")
