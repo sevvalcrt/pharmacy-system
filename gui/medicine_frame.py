@@ -3,6 +3,7 @@ from tkinter import messagebox
 from tkinter import ttk
 
 from repositories.medicine_repository import MedicineRepository
+from repositories.category_repository import CategoryRepository
 from services.medicine_service import MedicineService
 
 
@@ -11,8 +12,12 @@ class MedicineFrame:
         self.root = root
         self.current_user = current_user
         self.db = db
+
         self.repo = MedicineRepository(self.db)
+        self.category_repo = CategoryRepository(self.db)
         self.service = MedicineService(self.repo)
+
+        self.category_map = {}
 
         self.frame = tk.Frame(self.root, padx=20, pady=15)
         self.frame.pack(expand=True, fill="both")
@@ -42,9 +47,9 @@ class MedicineFrame:
         self.name = tk.Entry(left, width=25)
         self.name.grid(row=0, column=1, pady=6)
 
-        tk.Label(left, text="Category ID").grid(row=1, column=0, sticky="w", pady=6)
-        self.category = tk.Entry(left, width=25)
-        self.category.grid(row=1, column=1, pady=6)
+        tk.Label(left, text="Category").grid(row=1, column=0, sticky="w", pady=6)
+        self.category_combo = ttk.Combobox(left, state="readonly", width=22)
+        self.category_combo.grid(row=1, column=1, pady=6)
 
         tk.Label(left, text="Price").grid(row=2, column=0, sticky="w", pady=6)
         self.price = tk.Entry(left, width=25)
@@ -122,13 +127,33 @@ class MedicineFrame:
         self.table.column("rx", width=50, anchor="center")
         self.table.column("status", width=90, anchor="center")
 
+        self.load_categories()
         self.load_data()
+
+    def load_categories(self):
+        categories = self.category_repo.get_all()
+
+        self.category_map = {
+            category.name: category.id
+            for category in categories
+        }
+
+        self.category_combo["values"] = list(self.category_map.keys())
+
+        if self.category_map:
+            self.category_combo.current(0)
 
     def add_medicine(self):
         try:
+            selected_category = self.category_combo.get()
+
+            if not selected_category:
+                messagebox.showerror("Error", "Select a category.")
+                return
+
             result = self.service.save_medicine(
                 self.name.get(),
-                self.category.get(),
+                self.category_map[selected_category],
                 self.price.get(),
                 self.stock.get(),
                 self.expiry.get(),
@@ -144,6 +169,7 @@ class MedicineFrame:
                 messagebox.showinfo("Success", "Medicine added.")
 
             self.clear_inputs()
+            self.load_categories()
             self.load_data()
 
         except Exception as e:
@@ -184,18 +210,21 @@ class MedicineFrame:
         try:
             self.service.delete_medicine(med_id)
             messagebox.showinfo("Success", "Medicine deleted.")
+            self.load_categories()
             self.load_data()
         except Exception as e:
             messagebox.showerror("Error", str(e))
 
     def clear_inputs(self):
         self.name.delete(0, tk.END)
-        self.category.delete(0, tk.END)
         self.price.delete(0, tk.END)
         self.stock.delete(0, tk.END)
         self.expiry.delete(0, tk.END)
         self.expiry.insert(0, "YYYY-MM-DD")
         self.prescription_var.set(False)
+
+        if self.category_map:
+            self.category_combo.current(0)
 
     def back(self):
         self.frame.destroy()
