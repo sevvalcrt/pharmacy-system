@@ -1,26 +1,30 @@
+from sale import Sale
 from sale_item import SaleItem
+from payment import Payment
+from invoice import Invoice
+from inventory import Inventory
 
 
 class SalesService:
-    def __init__(self, medicine_repo, sale_repo, prescription_repo=None, pharmacist=None):
+    def __init__(
+        self,
+        medicine_repo,
+        sale_repo,
+        prescription_repo,
+        payment_repo,
+        inventory_repo=None
+    ):
         self.medicine_repo = medicine_repo
         self.sale_repo = sale_repo
         self.prescription_repo = prescription_repo
-        self.pharmacist = pharmacist
+        self.payment_repo = payment_repo
+        self.inventory_repo = inventory_repo
 
-    def add_medicine_to_sale(self, sale, medicine_id, quantity):
-        if sale is None:
-            raise ValueError("Sale cannot be empty.")
-
-        if sale.is_completed:
-            raise ValueError("Completed sale cannot be changed.")
-
+    def validate_medicine_for_cart(self, medicine, quantity, prescription_id):
         quantity = int(quantity)
 
         if quantity <= 0:
             raise ValueError("Quantity must be greater than 0.")
-
-        medicine = self.medicine_repo.get_by_id(medicine_id)
 
         if medicine is None:
             raise ValueError("Medicine not found.")
@@ -29,48 +33,146 @@ class SalesService:
             raise ValueError("Medicine is expired or stock is insufficient.")
 
         if medicine.requires_prescription:
-            if self.prescription_repo is None:
-                raise ValueError("Prescription repository is required for prescription medicines.")
-
-            if sale.prescription_id is None:
+            if prescription_id is None:
                 raise ValueError("This medicine requires a prescription.")
 
-            prescription = self.prescription_repo.get_by_id(sale.prescription_id)
+            prescription = self.prescription_repo.get_by_id(prescription_id)
 
             if prescription is None:
                 raise ValueError("Prescription not found.")
 
-            temp_item = SaleItem(None, sale.id, medicine.id, quantity, medicine.unit_price)
+            if not prescription.has_medicine(medicine.id):
+                raise ValueError("This medicine is not in the selected prescription.")
 
-            if self.pharmacist is not None:
-                self.pharmacist.validate_prescription(
-                    prescription,
-                    [temp_item],
-                    self.medicine_repo
+            if not prescription.allows_quantity(medicine.id, quantity):
+                raise ValueError("Quantity exceeds prescription limit.")
+
+        return True
+
+    def add_to_cart(self, cart, medicine, quantity, prescription_id):
+        quantity = int(quantity)
+
+        self.validate_medicine_for_cart(medicine, quantity, prescription_id)
+
+        for item in cart:
+            if item["medicine"].id == medicine.id:
+                new_quantity = item["quantity"] + quantity
+
+                self.validate_medicine_for_cart(
+                    medicine,
+                    new_quantity,
+                    prescription_id
                 )
 
-        sale_item = SaleItem(None, sale.id, medicine.id, quantity, medicine.unit_price)
-        sale.add_item(sale_item)
-        return sale_item
+                item["quantity"] = new_quantity
+                item["subtotal"] = medicine.unit_price * new_quantity
+                return cart
 
-    def complete_sale(self, sale):
-        if sale is None:
-            raise ValueError("Sale cannot be empty.")
+        cart.append({
+            "medicine": medicine,
+            "quantity": quantity,
+            "unit_price": medicine.unit_price,
+            "subtotal": medicine.unit_price * quantity,
+            "prescription_id": prescription_id
+        })
 
-        if sale.is_empty():
-            raise ValueError("Cannot complete an empty sale.")
+        return cart
 
-        if sale.is_completed:
-            raise ValueError("Sale is already completed.")
+    def get_total(self, cart):
+        return sum(item["subtotal"] for item in cart)
 
-        for item in sale.items:
-            medicine = self.medicine_repo.get_by_id(item.medicine_id)
+    def get_prescription_id_from_cart(self, cart):
+        for item in cart:
+            if item["prescription_id"] is not None:
+                return item["prescription_id"]
+        return None
+
+    def validate_payment(self, total, paid, method):
+        method = method.strip().upper()
+
+        if method in ("CARD", "TRANSFER"):
+            paid = total
+
+        payment = Payment(None, 1, paid, method)
+        change = payment.calculate_change(total)
+
+        return paid, change
+
+    def complete_sale(self, cart, paid_amount, method, cashier_name):
+        if not cart:
+            raise ValueError("Sale is empty.")
+
+        total = self.get_total(cart)
+        paid_amount, change = self.validate_payment(total, paid_amount, method)
+
+        prescription_id = self.get_prescription_id_from_cart(cart)
+
+        sale = Sale(
+            None,
+            customer_id=None,
+            prescription_id=prescription_id
+        )
+
+        self.sale_repo.add(sale)
+
+        for cart_item in cart:
+            medicine = self.medicine_repo.get_by_id(cart_item["medicine"].id)
 
             if medicine is None:
                 raise ValueError("Medicine not found.")
 
-            medicine.reduce_stock(item.quantity)
+            if not medicine.is_available(cart_item["quantity"]):
+                raise ValueError(f"{medicine.name} stock is insufficient.")
+
+            sale_item = SaleItem(
+                None,
+                sale.id,
+                medicine.id,
+                cart_item["quantity"],
+                cart_item["unit_price"]
+            )
+
+            sale.add_item(sale_item)
+
+            medicine.reduce_stock(cart_item["quantity"])
+            self.medicine_repo.update(medicine.id, medicine)
+
+            if self.inventory_repo is not None:
+                inventory = Inventory(
+                    None,
+                    medicine.id,
+                    -cart_item["quantity"],
+                    "OUT"
+                )
+                self.inventory_repo.add(inventory)
 
         sale.complete_sale()
-        self.sale_repo.add(sale)
-        return sale
+        self.sale_repo.update(sale.id, sale)
+
+        payment = Payment(None, sale.id, paid_amount, method)
+        self.payment_repo.add(payment)
+
+        invoice_items = [   
+             {
+                "name": item["medicine"].name,
+                "quantity": item["quantity"],
+                "subtotal": item["subtotal"]
+             }
+             for item in cart
+        ]
+
+
+        invoice = Invoice(
+            invoice_id=None,
+            sale_id=sale.id,
+            invoice_number=f"INV-{sale.id}",
+            customer_name="Walk-in Customer",
+            cashier_name=cashier_name,
+            items=invoice_items,
+            total_amount=total,
+            paid_amount=paid_amount,
+            change_amount=change,
+            payment_method=method
+        )
+
+        return invoice

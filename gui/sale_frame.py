@@ -6,11 +6,9 @@ from repositories.medicine_repository import MedicineRepository
 from repositories.sales_repository import SaleRepository
 from repositories.prescription_repository import PrescriptionRepository
 from repositories.payment_repository import PaymentRepository
+from repositories.inventory_repository import InventoryRepository
 
-from sale import Sale
-from sale_item import SaleItem
-from payment import Payment
-from invoice import Invoice
+from services.sales_service import SalesService
 
 
 class SaleFrame:
@@ -23,12 +21,30 @@ class SaleFrame:
         self.sale_repo = SaleRepository(self.db)
         self.prescription_repo = PrescriptionRepository(self.db)
         self.payment_repo = PaymentRepository(self.db)
+        self.inventory_repo = InventoryRepository(self.db)
+
+        self.sales_service = SalesService(
+            self.medicine_repo,
+            self.sale_repo,
+            self.prescription_repo,
+            self.payment_repo,
+            self.inventory_repo
+        )
 
         self.cart = []
 
         self.frame = tk.Frame(self.root, padx=10, pady=8)
         self.frame.pack(expand=True, fill="both")
 
+        self.create_top_bar()
+        self.create_form()
+        self.create_table()
+        self.create_payment_area()
+
+        self.load_prescriptions()
+        self.load_medicines()
+
+    def create_top_bar(self):
         top = tk.Frame(self.frame)
         top.pack(fill="x")
 
@@ -41,6 +57,7 @@ class SaleFrame:
             font=("Arial", 16, "bold")
         ).pack(pady=5)
 
+    def create_form(self):
         form = tk.LabelFrame(self.frame, text="Sale Form", padx=8, pady=6)
         form.pack(fill="x", pady=5)
 
@@ -63,10 +80,12 @@ class SaleFrame:
             command=self.add_item
         ).grid(row=3, column=0, columnspan=2, pady=6)
 
+    def create_table(self):
         table_frame = tk.LabelFrame(self.frame, text="Sale Items", padx=8, pady=6)
         table_frame.pack(fill="both", expand=True, pady=5)
 
         columns = ("medicine", "qty", "unit_price", "subtotal", "rx")
+
         self.table = ttk.Treeview(
             table_frame,
             columns=columns,
@@ -95,6 +114,7 @@ class SaleFrame:
         )
         self.total_label.pack(pady=4)
 
+    def create_payment_area(self):
         payment_frame = tk.LabelFrame(self.frame, text="Payment", padx=8, pady=6)
         payment_frame.pack(fill="x", pady=4)
 
@@ -129,9 +149,6 @@ class SaleFrame:
             width=15,
             command=self.complete_sale
         ).grid(row=0, column=5, padx=6)
-
-        self.load_prescriptions()
-        self.load_medicines()
 
     def load_prescriptions(self):
         prescriptions = self.prescription_repo.get_all()
@@ -168,65 +185,18 @@ class SaleFrame:
 
             quantity = int(self.qty_entry.get())
 
-            if quantity <= 0:
-                messagebox.showerror("Error", "Quantity must be greater than 0.")
-                return
-
             medicine = self.medicine_map[selected_medicine]
             prescription_id = self.prescription_map[selected_prescription]
 
-            if not medicine.is_available(quantity):
-                messagebox.showerror("Error", "Medicine is expired or stock is insufficient.")
-                return
+            self.cart = self.sales_service.add_to_cart(
+                self.cart,
+                medicine,
+                quantity,
+                prescription_id
+            )
 
-            if medicine.requires_prescription:
-                if prescription_id is None:
-                    messagebox.showerror("Error", "This medicine requires a prescription.")
-                    return
-
-                prescription = self.prescription_repo.get_by_id(prescription_id)
-
-                if prescription is None:
-                    messagebox.showerror("Error", "Prescription not found.")
-                    return
-
-                if not prescription.has_medicine(medicine.id):
-                    messagebox.showerror("Error", "This medicine is not in the selected prescription.")
-                    return
-
-                if not prescription.allows_quantity(medicine.id, quantity):
-                    messagebox.showerror("Error", "Quantity exceeds prescription limit.")
-                    return
-
-            for cart_item in self.cart:
-                if cart_item["medicine"].id == medicine.id:
-                    new_quantity = cart_item["quantity"] + quantity
-
-                    if not medicine.is_available(new_quantity):
-                        messagebox.showerror("Error", "Total quantity exceeds stock.")
-                        return
-
-                    cart_item["quantity"] = new_quantity
-                    cart_item["subtotal"] = medicine.unit_price * new_quantity
-
-                    self.refresh_table()
-                    self.qty_entry.delete(0, tk.END)
-                    self.update_total()
-                    self.calculate_change()
-                    return
-
-            subtotal = medicine.unit_price * quantity
-
-            self.cart.append({
-                "medicine": medicine,
-                "quantity": quantity,
-                "unit_price": medicine.unit_price,
-                "subtotal": subtotal,
-                "prescription_id": prescription_id
-            })
-
-            self.refresh_table()
             self.qty_entry.delete(0, tk.END)
+            self.refresh_table()
             self.update_total()
             self.calculate_change()
 
@@ -252,18 +222,15 @@ class SaleFrame:
                 )
             )
 
-    def get_total(self):
-        return sum(item["subtotal"] for item in self.cart)
-
     def update_total(self):
-        total = self.get_total()
+        total = self.sales_service.get_total(self.cart)
         self.total_label.config(text=f"Total: {total:.2f} TL")
 
     def payment_method_changed(self, event=None):
         method = self.method_combo.get()
+        total = self.sales_service.get_total(self.cart)
 
         if method in ("CARD", "TRANSFER"):
-            total = self.get_total()
             self.paid_entry.config(state="normal")
             self.paid_entry.delete(0, tk.END)
             self.paid_entry.insert(0, f"{total:.2f}")
@@ -276,7 +243,7 @@ class SaleFrame:
 
     def calculate_change(self, event=None):
         method = self.method_combo.get()
-        total = self.get_total()
+        total = self.sales_service.get_total(self.cart)
 
         if method in ("CARD", "TRANSFER"):
             self.change_label.config(text="Change: 0.00 TL")
@@ -290,18 +257,10 @@ class SaleFrame:
 
         try:
             paid = float(paid_text)
-
-            temp_payment = Payment(
-                None,
-                1,
-                paid,
-                method
-            )
-
-            change = temp_payment.calculate_change(total)
+            _, change = self.sales_service.validate_payment(total, paid, method)
             self.change_label.config(text=f"Change: {change:.2f} TL")
 
-        except ValueError:
+        except Exception:
             try:
                 paid = float(paid_text)
                 missing = total - paid
@@ -320,8 +279,8 @@ class SaleFrame:
                 messagebox.showerror("Error", "Sale is empty.")
                 return
 
-            total = self.get_total()
             method = self.method_combo.get()
+            total = self.sales_service.get_total(self.cart)
 
             if method == "CASH":
                 paid_text = self.paid_entry.get().strip()
@@ -334,67 +293,14 @@ class SaleFrame:
             else:
                 paid = total
 
-            prescription_id = None
-
-            for item in self.cart:
-                if item["prescription_id"] is not None:
-                    prescription_id = item["prescription_id"]
-                    break
-
-            sale = Sale(None, customer_id=None, prescription_id=prescription_id)
-            self.sale_repo.add(sale)
-
-            for item in self.cart:
-                medicine = item["medicine"]
-
-                sale_item = SaleItem(
-                    None,
-                    sale.id,
-                    medicine.id,
-                    item["quantity"],
-                    item["unit_price"]
-                )
-
-                sale.add_item(sale_item)
-
-                medicine.reduce_stock(item["quantity"])
-                self.medicine_repo.update(medicine.id, medicine)
-
-            sale.complete_sale()
-            self.sale_repo.update(sale.id, sale)
-
-            payment = Payment(None, sale.id, paid, method)
-            change = payment.calculate_change(total)
-            self.payment_repo.add(payment)
-
-            invoice_items = []
-
-            for item in self.cart:
-                medicine = item["medicine"]
-
-                invoice_items.append({
-                    "name": medicine.name,
-                    "quantity": item["quantity"],
-                    "subtotal": item["subtotal"]
-                })
-
-            invoice = Invoice(
-                invoice_id=None,
-                sale_id=sale.id,
-                invoice_number=f"INV-{sale.id}",
-                customer_name="Walk-in Customer",
-                cashier_name=self.user.full_name,
-                items=invoice_items,
-                total_amount=total,
+            invoice = self.sales_service.complete_sale(
+                cart=self.cart,
                 paid_amount=paid,
-                change_amount=change,
-                payment_method=method
+                method=method,
+                cashier_name=self.user.full_name
             )
 
-            messagebox.showinfo(
-                "Invoice",
-                invoice.generate_text()
-            )
+            messagebox.showinfo("Invoice", invoice.generate_text())
 
             self.frame.destroy()
 

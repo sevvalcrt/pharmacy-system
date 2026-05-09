@@ -2,12 +2,7 @@ import tkinter as tk
 from tkinter import messagebox
 from tkinter import ttk
 
-from prescription import Prescription
-from prescription_item import PrescriptionItem
-
-from repositories.prescription_repository import PrescriptionRepository
-from repositories.medicine_repository import MedicineRepository
-from repositories.customer_repository import CustomerRepository
+from services.prescription_service import PrescriptionService
 
 
 class PrescriptionFrame:
@@ -16,9 +11,7 @@ class PrescriptionFrame:
         self.current_user = current_user
         self.db = db
 
-        self.prescription_repo = PrescriptionRepository(self.db)
-        self.medicine_repo = MedicineRepository(self.db)
-        self.customer_repo = CustomerRepository(self.db)
+        self.service = PrescriptionService(self.db)
 
         self.frame = tk.Frame(self.root, padx=20, pady=15)
         self.frame.pack(expand=True, fill="both")
@@ -192,7 +185,7 @@ class PrescriptionFrame:
         self.load_prescriptions()
 
     def load_customers(self):
-        customers = self.customer_repo.get_all()
+        customers = self.service.get_customers()
 
         self.customer_map = {
             f"{c.full_name} (ID:{c.id})": c.id
@@ -212,7 +205,7 @@ class PrescriptionFrame:
         return f"Customer {customer_id}"
 
     def load_prescription_combo(self):
-        prescriptions = self.prescription_repo.get_all()
+        prescriptions = self.service.get_prescriptions()
 
         self.prescription_map = {
             f"{self.get_customer_name_by_id(p.customer_id)} | {p.doctor_name}": p.id
@@ -225,7 +218,7 @@ class PrescriptionFrame:
             self.prescription_combo.current(0)
 
     def load_medicines(self):
-        medicines = self.medicine_repo.get_all()
+        medicines = self.service.get_medicines()
 
         self.medicine_map = {
             m.name: m.id
@@ -253,8 +246,7 @@ class PrescriptionFrame:
             customer_id = self.customer_map[selected_customer]
             doctor_name = self.doctor_entry.get()
 
-            prescription = Prescription(None, customer_id, doctor_name)
-            self.prescription_repo.add(prescription)
+            self.service.create_prescription(customer_id, doctor_name)
 
             messagebox.showinfo("Success", "Prescription created.")
 
@@ -281,16 +273,11 @@ class PrescriptionFrame:
             medicine_id = self.medicine_map[selected_medicine]
             quantity = int(self.quantity_entry.get())
 
-            prescription = self.prescription_repo.get_by_id(prescription_id)
-
-            if prescription is None:
-                messagebox.showerror("Error", "Prescription not found.")
-                return
-
-            item = PrescriptionItem(None, prescription_id, medicine_id, quantity)
-            prescription.add_item(item)
-
-            self.prescription_repo.update(prescription_id, prescription)
+            self.service.add_medicine_to_prescription(
+                prescription_id,
+                medicine_id,
+                quantity
+            )
 
             messagebox.showinfo("Success", "Medicine added to prescription.")
 
@@ -305,7 +292,7 @@ class PrescriptionFrame:
         for row in self.table.get_children():
             self.table.delete(row)
 
-        prescriptions = self.prescription_repo.get_all()
+        prescriptions = self.service.get_prescriptions()
 
         for p in prescriptions:
             self.table.insert(
@@ -326,7 +313,7 @@ class PrescriptionFrame:
         for row in self.item_table.get_children():
             self.item_table.delete(row)
 
-        prescription = self.prescription_repo.get_by_id(prescription_id)
+        prescription = self.service.get_prescription_by_id(prescription_id)
 
         if prescription is None:
             return
@@ -378,8 +365,10 @@ class PrescriptionFrame:
             return
 
         try:
-            self.prescription_repo.remove_by_id(prescription_id)
+            self.service.delete_prescription(prescription_id)
+
             messagebox.showinfo("Success", "Prescription deleted.")
+
             self.load_prescriptions()
 
             for row in self.item_table.get_children():

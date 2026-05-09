@@ -2,8 +2,8 @@ import tkinter as tk
 from tkinter import messagebox
 from tkinter import ttk
 
-from medicine import Medicine
 from repositories.medicine_repository import MedicineRepository
+from services.medicine_service import MedicineService
 
 
 class MedicineFrame:
@@ -12,6 +12,7 @@ class MedicineFrame:
         self.current_user = current_user
         self.db = db
         self.repo = MedicineRepository(self.db)
+        self.service = MedicineService(self.repo)
 
         self.frame = tk.Frame(self.root, padx=20, pady=15)
         self.frame.pack(expand=True, fill="both")
@@ -125,50 +126,21 @@ class MedicineFrame:
 
     def add_medicine(self):
         try:
-            name = self.name.get().strip()
-            category_id = int(self.category.get())
-            price = float(self.price.get())
-            stock = int(self.stock.get())
+            result = self.service.save_medicine(
+                self.name.get(),
+                self.category.get(),
+                self.price.get(),
+                self.stock.get(),
+                self.expiry.get(),
+                self.prescription_var.get()
+            )
 
-            expiry = self.expiry.get().strip()
-            if expiry == "YYYY-MM-DD":
-                expiry = None
-
-            requires_prescription = self.prescription_var.get()
-
-            existing_medicine = None
-
-            for medicine in self.repo.get_all():
-                if medicine.name.lower() == name.lower():
-                    existing_medicine = medicine
-                    break
-
-            if existing_medicine:
-                existing_medicine.stock += stock
-                existing_medicine.unit_price = price
-                existing_medicine.category_id = category_id
-                existing_medicine.expiry_date = expiry
-                existing_medicine.requires_prescription = requires_prescription
-
-                self.repo.update(existing_medicine.id, existing_medicine)
-
+            if result == "updated":
                 messagebox.showinfo(
                     "Updated",
                     "Medicine already exists. Stock and details updated."
                 )
             else:
-                med = Medicine(
-                    None,
-                    name,
-                    category_id,
-                    price,
-                    stock,
-                    expiry,
-                    requires_prescription
-                )
-
-                self.repo.add(med)
-
                 messagebox.showinfo("Success", "Medicine added.")
 
             self.clear_inputs()
@@ -181,7 +153,7 @@ class MedicineFrame:
         for row in self.table.get_children():
             self.table.delete(row)
 
-        for m in self.repo.get_all():
+        for m in self.service.get_all_medicines():
             self.table.insert(
                 "",
                 "end",
@@ -210,7 +182,7 @@ class MedicineFrame:
             return
 
         try:
-            self.repo.remove_by_id(med_id)
+            self.service.delete_medicine(med_id)
             messagebox.showinfo("Success", "Medicine deleted.")
             self.load_data()
         except Exception as e:
