@@ -25,6 +25,13 @@ class PharmacistDashboard:
 
         tk.Button(
             self.frame,
+            text="Manage Customers",
+            width=25,
+            command=self.open_customers
+        ).pack(pady=5)
+
+        tk.Button(
+            self.frame,
             text="Medicine Status",
             width=25,
             command=self.open_status
@@ -41,6 +48,11 @@ class PharmacistDashboard:
         self.frame.destroy()
         from gui.prescription_frame import PrescriptionFrame
         PrescriptionFrame(self.root, self.user, self.db)
+
+    def open_customers(self):
+        self.frame.destroy()
+        from gui.customer_frame import CustomerFrame
+        CustomerFrame(self.root, self.user, self.db)
 
     def open_status(self):
         self.frame.destroy()

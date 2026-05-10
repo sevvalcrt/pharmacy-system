@@ -12,16 +12,20 @@ class SalesService:
         sale_repo,
         prescription_repo,
         payment_repo,
-        inventory_repo=None,
-        invoice_repo=None
+        inventory_repo=None
     ):
         self.medicine_repo = medicine_repo
         self.sale_repo = sale_repo
         self.prescription_repo = prescription_repo
         self.payment_repo = payment_repo
         self.inventory_repo = inventory_repo
-        self.invoice_repo = invoice_repo
-        
+
+    def get_all_medicines(self):
+        return self.medicine_repo.get_all()
+
+    def get_all_prescriptions(self):
+        return self.prescription_repo.get_all()
+
     def validate_medicine_for_cart(self, medicine, quantity, prescription_id):
         quantity = int(quantity)
 
@@ -110,11 +114,14 @@ class SalesService:
         prescription_id = self.get_prescription_id_from_cart(cart)
 
         customer_id = None
+        customer_name = "Walk-in Customer"
 
         if prescription_id is not None:
             prescription = self.prescription_repo.get_by_id(prescription_id)
+
             if prescription is not None:
                 customer_id = prescription.customer_id
+                customer_name = f"Customer ID: {customer_id}"
 
         sale = Sale(
             None,
@@ -151,8 +158,7 @@ class SalesService:
                     None,
                     medicine.id,
                     -cart_item["quantity"],
-                    "OUT",
-                    sale_id=sale.id
+                    "OUT"
                 )
                 self.inventory_repo.add(inventory)
 
@@ -162,13 +168,13 @@ class SalesService:
         payment = Payment(None, sale.id, paid_amount, method)
         self.payment_repo.add(payment)
 
-        invoice_items = [   
-             {
+        invoice_items = [
+            {
                 "name": item["medicine"].name,
                 "quantity": item["quantity"],
                 "subtotal": item["subtotal"]
-             }
-             for item in cart
+            }
+            for item in cart
         ]
 
 
@@ -176,7 +182,7 @@ class SalesService:
             invoice_id=None,
             sale_id=sale.id,
             invoice_number=f"INV-{sale.id}",
-            customer_name="Walk-in Customer",
+            customer_name=customer_name,
             cashier_name=cashier_name,
             items=invoice_items,
             total_amount=total,
@@ -184,7 +190,6 @@ class SalesService:
             change_amount=change,
             payment_method=method
         )
-        if self.invoice_repo is not None:
-            self.invoice_repo.add(invoice)
+
 
         return invoice

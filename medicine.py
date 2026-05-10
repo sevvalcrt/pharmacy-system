@@ -101,16 +101,8 @@ class Medicine:
 
     def mark_as_non_prescription(self):
         self.requires_prescription = False
-
-    def can_be_sold(self, quantity):
-        if not self.is_available(quantity):
-            return False
-
-        if self.requires_prescription:
-            return False  # reçete kontrolü service'te yapılacak
-
-        return True
     
+
     def is_low_stock(self, threshold=10):
         return self.stock <= threshold
     

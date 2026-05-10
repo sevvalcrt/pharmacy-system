@@ -45,13 +45,19 @@ class CustomerFrame:
         self.phone_entry = tk.Entry(left, width=25)
         self.phone_entry.grid(row=1, column=1, pady=6)
 
-        tk.Button(left, text="Add Customer", width=22, command=self.add_customer).grid(
-            row=2, column=0, columnspan=2, pady=10
-        )
+        tk.Button(
+            left,
+            text="Add Customer",
+            width=22,
+            command=self.add_customer
+        ).grid(row=2, column=0, columnspan=2, pady=10)
 
-        tk.Button(left, text="Delete Selected", width=22, command=self.delete_selected).grid(
-            row=3, column=0, columnspan=2, pady=5
-        )
+        tk.Button(
+            left,
+            text="Delete Selected",
+            width=22,
+            command=self.delete_selected
+        ).grid(row=3, column=0, columnspan=2, pady=5)
 
         columns = ("id", "name", "phone")
         self.table = ttk.Treeview(right, columns=columns, show="headings")
@@ -122,8 +128,8 @@ class CustomerFrame:
     def back(self):
         self.frame.destroy()
 
-        from gui.cashier_dashboard import CashierDashboard
-        CashierDashboard(self.root, self.current_user, self.db)
+        from gui.pharmacist_dashboard import PharmacistDashboard
+        PharmacistDashboard(self.root, self.current_user, self.db)
 
     def logout(self):
         self.frame.destroy()

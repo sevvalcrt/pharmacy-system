@@ -69,7 +69,7 @@ def initialize_schema(db_manager: DatabaseManager | None = None) -> None:
                 prescription_id INTEGER NOT NULL,
                 medicine_id INTEGER NOT NULL,
                 quantity INTEGER NOT NULL CHECK (quantity > 0),
-                FOREIGN KEY (prescription_id) REFERENCES prescriptions(id),
+                FOREIGN KEY (prescription_id) REFERENCES prescriptions(id) ON DELETE CASCADE,
                 FOREIGN KEY (medicine_id) REFERENCES medicines(id)
             )
         """)
@@ -95,7 +95,7 @@ def initialize_schema(db_manager: DatabaseManager | None = None) -> None:
                 quantity INTEGER NOT NULL CHECK (quantity > 0),
                 unit_price REAL NOT NULL CHECK (unit_price > 0),
                 subtotal REAL NOT NULL CHECK (subtotal >= 0),
-                FOREIGN KEY (sale_id) REFERENCES sales(id),
+                FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE CASCADE,
                 FOREIGN KEY (medicine_id) REFERENCES medicines(id)
             )
         """)
@@ -106,22 +106,7 @@ def initialize_schema(db_manager: DatabaseManager | None = None) -> None:
                 sale_id INTEGER NOT NULL,
                 amount REAL NOT NULL CHECK (amount > 0),
                 method TEXT NOT NULL CHECK (method IN ('CASH', 'CARD', 'TRANSFER')),
-                FOREIGN KEY (sale_id) REFERENCES sales(id)
-            )
-        """)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS invoices (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                sale_id INTEGER NOT NULL UNIQUE,
-                invoice_number TEXT NOT NULL UNIQUE,
-                customer_name TEXT,
-                cashier_name TEXT,
-                total_amount REAL NOT NULL CHECK (total_amount >= 0),
-                paid_amount REAL NOT NULL CHECK (paid_amount >= 0),
-                change_amount REAL NOT NULL CHECK (change_amount >= 0),
-                payment_method TEXT NOT NULL CHECK (payment_method IN ('CASH', 'CARD', 'TRANSFER')),
-                issued_at TEXT NOT NULL,
-                FOREIGN KEY (sale_id) REFERENCES sales(id)
+                FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE CASCADE
             )
         """)
 
@@ -129,12 +114,10 @@ def initialize_schema(db_manager: DatabaseManager | None = None) -> None:
             CREATE TABLE IF NOT EXISTS inventory (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 medicine_id INTEGER NOT NULL,
-                sale_id INTEGER,
                 quantity_change INTEGER NOT NULL CHECK (quantity_change != 0),
                 action_type TEXT NOT NULL CHECK (action_type IN ('IN', 'OUT', 'RETURN', 'ADJUST')),
                 action_date TEXT NOT NULL,
-                FOREIGN KEY (medicine_id) REFERENCES medicines(id),
-                FOREIGN KEY (sale_id) REFERENCES sales(id)
+                FOREIGN KEY (medicine_id) REFERENCES medicines(id)
             )
         """)
 
@@ -148,13 +131,7 @@ def initialize_schema(db_manager: DatabaseManager | None = None) -> None:
             [(1, "Painkiller"), (2, "Antibiotic"), (3, "Vitamin")]
         )
 
-        
-
         cursor.execute("""
             INSERT OR IGNORE INTO users(id, full_name, username, password, role_id)
             VALUES (1, 'System Admin', 'admin', '123456', 1)
         """)
-
-if __name__ == "__main__":
-    initialize_schema()
-    print("Database schema initialized successfully.")
