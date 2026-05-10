@@ -4,6 +4,7 @@ from tkinter import ttk
 
 from customer import Customer
 from repositories.customer_repository import CustomerRepository
+from gui.navigation import go_to_login, go_to_pharmacist_dashboard
 
 
 class CustomerFrame:
@@ -126,13 +127,16 @@ class CustomerFrame:
         self.phone_entry.delete(0, tk.END)
 
     def back(self):
-        self.frame.destroy()
-
-        from gui.pharmacist_dashboard import PharmacistDashboard
-        PharmacistDashboard(self.root, self.current_user, self.db)
+        go_to_pharmacist_dashboard(
+            self.root,
+            self.current_user,
+            self.db,
+            self.frame
+        )
 
     def logout(self):
-        self.frame.destroy()
-
-        from gui.login_window import LoginWindow
-        LoginWindow(self.root, self.db)
+        go_to_login(
+            self.root,
+            self.db,
+            self.frame
+        )

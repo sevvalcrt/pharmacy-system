@@ -3,6 +3,7 @@ from tkinter import messagebox
 from tkinter import ttk
 
 from services.inventory_service import InventoryService
+from gui.navigation import go_to_login, go_to_admin_dashboard
 
 
 class InventoryFrame:
@@ -69,7 +70,12 @@ class InventoryFrame:
         ).grid(row=4, column=0, columnspan=2, pady=5)
 
         columns = ("id", "medicine_id", "quantity", "action", "date")
-        self.table = ttk.Treeview(right, columns=columns, show="headings")
+
+        self.table = ttk.Treeview(
+            right,
+            columns=columns,
+            show="headings"
+        )
 
         self.table.heading("id", text="ID")
         self.table.heading("medicine_id", text="Medicine ID")
@@ -96,6 +102,7 @@ class InventoryFrame:
             )
 
             messagebox.showinfo("Success", "Inventory movement added.")
+
             self.clear_inputs()
             self.load_data()
 
@@ -128,13 +135,22 @@ class InventoryFrame:
 
         movement_id = int(self.table.item(selected[0], "values")[0])
 
-        confirm = messagebox.askyesno("Confirm", "Delete this inventory record?")
+        confirm = messagebox.askyesno(
+            "Confirm",
+            "Delete this inventory record?"
+        )
+
         if not confirm:
             return
 
         try:
             self.service.delete_movement(movement_id)
-            messagebox.showinfo("Success", "Inventory record deleted.")
+
+            messagebox.showinfo(
+                "Success",
+                "Inventory record deleted."
+            )
+
             self.load_data()
 
         except Exception as e:
@@ -146,11 +162,16 @@ class InventoryFrame:
         self.action_combo.current(0)
 
     def back(self):
-        self.frame.destroy()
-        from gui.admin_dashboard import AdminDashboard
-        AdminDashboard(self.root, self.current_user, self.db)
+        go_to_admin_dashboard(
+            self.root,
+            self.current_user,
+            self.db,
+            self.frame
+        )
 
     def logout(self):
-        self.frame.destroy()
-        from gui.login_window import LoginWindow
-        LoginWindow(self.root, self.db)
+        go_to_login(
+            self.root,
+            self.db,
+            self.frame
+        )

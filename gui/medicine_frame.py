@@ -5,6 +5,7 @@ from tkinter import ttk
 from repositories.medicine_repository import MedicineRepository
 from repositories.category_repository import CategoryRepository
 from services.medicine_service import MedicineService
+from gui.navigation import go_to_login, go_to_admin_dashboard
 
 
 class MedicineFrame:
@@ -18,6 +19,7 @@ class MedicineFrame:
         self.service = MedicineService(self.repo)
 
         self.category_map = {}
+        self.selected_medicine_id = None
 
         self.frame = tk.Frame(self.root, padx=20, pady=15)
         self.frame.pack(expand=True, fill="both")
@@ -85,6 +87,13 @@ class MedicineFrame:
             command=self.delete_selected
         ).grid(row=7, column=0, columnspan=2, pady=5)
 
+        tk.Button(
+            left,
+            text="Clear Form",
+            width=22,
+            command=self.clear_inputs
+        ).grid(row=8, column=0, columnspan=2, pady=5)
+
         table_frame = tk.Frame(right)
         table_frame.pack(expand=True, fill="both")
 
@@ -127,6 +136,8 @@ class MedicineFrame:
         self.table.column("rx", width=50, anchor="center")
         self.table.column("status", width=90, anchor="center")
 
+        self.table.bind("<<TreeviewSelect>>", self.select_medicine)
+
         self.load_categories()
         self.load_data()
 
@@ -143,6 +154,43 @@ class MedicineFrame:
         if self.category_map:
             self.category_combo.current(0)
 
+    def select_medicine(self, event=None):
+        selected = self.table.selection()
+
+        if not selected:
+            return
+
+        values = self.table.item(selected[0], "values")
+        self.selected_medicine_id = int(values[0])
+
+        medicine = self.service.get_medicine_by_id(self.selected_medicine_id)
+
+        if medicine is None:
+            return
+
+        self.name.delete(0, tk.END)
+        self.name.insert(0, medicine.name)
+
+        for category_name, category_id in self.category_map.items():
+            if category_id == medicine.category_id:
+                self.category_combo.set(category_name)
+                break
+
+        self.price.delete(0, tk.END)
+        self.price.insert(0, str(medicine.unit_price))
+
+        self.stock.delete(0, tk.END)
+        self.stock.insert(0, str(medicine.stock))
+
+        self.expiry.delete(0, tk.END)
+
+        if medicine.expiry_date:
+            self.expiry.insert(0, medicine.expiry_date)
+        else:
+            self.expiry.insert(0, "YYYY-MM-DD")
+
+        self.prescription_var.set(medicine.requires_prescription)
+
     def add_medicine(self):
         try:
             selected_category = self.category_combo.get()
@@ -151,22 +199,36 @@ class MedicineFrame:
                 messagebox.showerror("Error", "Select a category.")
                 return
 
-            result = self.service.save_medicine(
-                self.name.get(),
-                self.category_map[selected_category],
-                self.price.get(),
-                self.stock.get(),
-                self.expiry.get(),
-                self.prescription_var.get()
-            )
-
-            if result == "updated":
-                messagebox.showinfo(
-                    "Updated",
-                    "Medicine already exists. Stock and details updated."
+            if self.selected_medicine_id is not None:
+                self.service.update_medicine(
+                    self.selected_medicine_id,
+                    self.name.get(),
+                    self.category_map[selected_category],
+                    self.price.get(),
+                    self.stock.get(),
+                    self.expiry.get(),
+                    self.prescription_var.get()
                 )
+
+                messagebox.showinfo("Success", "Medicine updated successfully.")
+
             else:
-                messagebox.showinfo("Success", "Medicine added.")
+                result = self.service.save_medicine(
+                    self.name.get(),
+                    self.category_map[selected_category],
+                    self.price.get(),
+                    self.stock.get(),
+                    self.expiry.get(),
+                    self.prescription_var.get()
+                )
+
+                if result == "updated":
+                    messagebox.showinfo(
+                        "Updated",
+                        "Medicine already exists. Stock and details updated."
+                    )
+                else:
+                    messagebox.showinfo("Success", "Medicine added.")
 
             self.clear_inputs()
             self.load_categories()
@@ -179,18 +241,18 @@ class MedicineFrame:
         for row in self.table.get_children():
             self.table.delete(row)
 
-        for m in self.service.get_all_medicines():
+        for medicine in self.service.get_all_medicines():
             self.table.insert(
                 "",
                 "end",
                 values=(
-                    m.id,
-                    m.name,
-                    f"{m.unit_price:.2f}",
-                    m.stock,
-                    m.expiry_date if m.expiry_date else "-",
-                    "Yes" if m.requires_prescription else "No",
-                    m.get_status()
+                    medicine.id,
+                    medicine.name,
+                    f"{medicine.unit_price:.2f}",
+                    medicine.stock,
+                    medicine.expiry_date if medicine.expiry_date else "-",
+                    "Yes" if medicine.requires_prescription else "No",
+                    medicine.get_status()
                 )
             )
 
@@ -201,17 +263,21 @@ class MedicineFrame:
             messagebox.showwarning("Warning", "Select a medicine.")
             return
 
-        med_id = int(self.table.item(selected[0], "values")[0])
+        medicine_id = int(self.table.item(selected[0], "values")[0])
 
         confirm = messagebox.askyesno("Confirm", "Delete this medicine?")
         if not confirm:
             return
 
         try:
-            self.service.delete_medicine(med_id)
+            self.service.delete_medicine(medicine_id)
+
             messagebox.showinfo("Success", "Medicine deleted.")
+
+            self.clear_inputs()
             self.load_categories()
             self.load_data()
+
         except Exception as e:
             messagebox.showerror("Error", str(e))
 
@@ -226,12 +292,23 @@ class MedicineFrame:
         if self.category_map:
             self.category_combo.current(0)
 
+        self.selected_medicine_id = None
+
+        selected = self.table.selection()
+        if selected:
+            self.table.selection_remove(selected)
+
     def back(self):
-        self.frame.destroy()
-        from gui.admin_dashboard import AdminDashboard
-        AdminDashboard(self.root, self.current_user, self.db)
+        go_to_admin_dashboard(
+            self.root,
+            self.current_user,
+            self.db,
+            self.frame
+        )
 
     def logout(self):
-        self.frame.destroy()
-        from gui.login_window import LoginWindow
-        LoginWindow(self.root, self.db)
+        go_to_login(
+            self.root,
+            self.db,
+            self.frame
+        )

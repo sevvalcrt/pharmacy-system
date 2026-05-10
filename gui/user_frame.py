@@ -3,6 +3,7 @@ from tkinter import messagebox
 from tkinter import ttk
 
 from services.user_service import UserService
+from gui.navigation import go_to_login, go_to_admin_dashboard
 
 
 class UserFrame:
@@ -66,12 +67,14 @@ class UserFrame:
         self.password_entry.grid(row=2, column=1, padx=5, pady=5)
 
         tk.Label(form_frame, text="Role").grid(row=3, column=0, padx=5, pady=5)
+
         self.role_combo = ttk.Combobox(
             form_frame,
             values=["Admin", "Pharmacist", "Cashier"],
             state="readonly",
             width=22
         )
+
         self.role_combo.grid(row=3, column=1, padx=5, pady=5)
         self.role_combo.current(2)
 
@@ -117,7 +120,9 @@ class UserFrame:
 
     def add_user(self):
         try:
-            role_id = self.service.role_text_to_id(self.role_combo.get())
+            role_id = self.service.role_text_to_id(
+                self.role_combo.get()
+            )
 
             self.service.create_user(
                 self.full_name_entry.get(),
@@ -126,7 +131,11 @@ class UserFrame:
                 role_id
             )
 
-            messagebox.showinfo("Success", "User added.")
+            messagebox.showinfo(
+                "Success",
+                "User added."
+            )
+
             self.clear_inputs()
             self.load_users()
 
@@ -155,19 +164,34 @@ class UserFrame:
         selected = self.user_table.selection()
 
         if not selected:
-            messagebox.showwarning("Warning", "Select a user.")
+            messagebox.showwarning(
+                "Warning",
+                "Select a user."
+            )
             return
 
         values = self.user_table.item(selected[0], "values")
         user_id = int(values[0])
 
-        confirm = messagebox.askyesno("Confirm", "Delete this user?")
+        confirm = messagebox.askyesno(
+            "Confirm",
+            "Delete this user?"
+        )
+
         if not confirm:
             return
 
         try:
-            self.service.delete_user(user_id, self.current_user.id)
-            messagebox.showinfo("Success", "User deleted.")
+            self.service.delete_user(
+                user_id,
+                self.current_user.id
+            )
+
+            messagebox.showinfo(
+                "Success",
+                "User deleted."
+            )
+
             self.load_users()
 
         except Exception as e:
@@ -177,16 +201,20 @@ class UserFrame:
         self.full_name_entry.delete(0, tk.END)
         self.username_entry.delete(0, tk.END)
         self.password_entry.delete(0, tk.END)
+
         self.role_combo.current(2)
 
     def back(self):
-        self.frame.destroy()
-
-        from gui.admin_dashboard import AdminDashboard
-        AdminDashboard(self.root, self.current_user, self.db)
+        go_to_admin_dashboard(
+            self.root,
+            self.current_user,
+            self.db,
+            self.frame
+        )
 
     def logout(self):
-        self.frame.destroy()
-
-        from gui.login_window import LoginWindow
-        LoginWindow(self.root, self.db)
+        go_to_login(
+            self.root,
+            self.db,
+            self.frame
+        )

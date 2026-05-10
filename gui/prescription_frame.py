@@ -3,6 +3,7 @@ from tkinter import messagebox
 from tkinter import ttk
 
 from services.prescription_service import PrescriptionService
+from gui.navigation import go_to_login, go_to_pharmacist_dashboard
 
 
 class PrescriptionFrame:
@@ -378,11 +379,16 @@ class PrescriptionFrame:
             messagebox.showerror("Error", str(e))
 
     def back(self):
-        self.frame.destroy()
-        from gui.pharmacist_dashboard import PharmacistDashboard
-        PharmacistDashboard(self.root, self.current_user, self.db)
+        go_to_pharmacist_dashboard(
+            self.root,
+            self.current_user,
+            self.db,
+            self.frame
+        )
 
     def logout(self):
-        self.frame.destroy()
-        from gui.login_window import LoginWindow
-        LoginWindow(self.root, self.db)
+        go_to_login(
+            self.root,
+            self.db,
+            self.frame
+        )

@@ -4,6 +4,7 @@ from tkinter import ttk
 from datetime import datetime
 
 from services.report_service import ReportService
+from gui.navigation import go_to_login, go_to_admin_dashboard
 
 
 class ReportFrame:
@@ -62,20 +63,42 @@ class ReportFrame:
         result = tk.LabelFrame(self.frame, text="Summary", padx=15, pady=15)
         result.pack(fill="x", pady=10)
 
-        self.daily_sales_label = tk.Label(result, text="Daily Total Sales: -", font=("Arial", 11))
+        self.daily_sales_label = tk.Label(
+            result,
+            text="Daily Total Sales: -",
+            font=("Arial", 11)
+        )
         self.daily_sales_label.pack(anchor="w", pady=3)
 
-        self.monthly_sales_label = tk.Label(result, text="Monthly Total Sales: -", font=("Arial", 11))
+        self.monthly_sales_label = tk.Label(
+            result,
+            text="Monthly Total Sales: -",
+            font=("Arial", 11)
+        )
         self.monthly_sales_label.pack(anchor="w", pady=3)
 
-        self.sales_count_label = tk.Label(result, text="Sales Count: -", font=("Arial", 11))
+        self.sales_count_label = tk.Label(
+            result,
+            text="Sales Count: -",
+            font=("Arial", 11)
+        )
         self.sales_count_label.pack(anchor="w", pady=3)
 
-        table_frame = tk.LabelFrame(self.frame, text="Top Selling Medicines", padx=10, pady=10)
+        table_frame = tk.LabelFrame(
+            self.frame,
+            text="Top Selling Medicines",
+            padx=10,
+            pady=10
+        )
         table_frame.pack(expand=True, fill="both", pady=10)
 
         columns = ("medicine", "quantity")
-        self.table = ttk.Treeview(table_frame, columns=columns, show="headings", height=10)
+        self.table = ttk.Treeview(
+            table_frame,
+            columns=columns,
+            show="headings",
+            height=10
+        )
 
         self.table.heading("medicine", text="Medicine")
         self.table.heading("quantity", text="Total Quantity")
@@ -123,11 +146,16 @@ class ReportFrame:
             messagebox.showerror("Error", str(e))
 
     def back(self):
-        self.frame.destroy()
-        from gui.admin_dashboard import AdminDashboard
-        AdminDashboard(self.root, self.current_user, self.db)
+        go_to_admin_dashboard(
+            self.root,
+            self.current_user,
+            self.db,
+            self.frame
+        )
 
     def logout(self):
-        self.frame.destroy()
-        from gui.login_window import LoginWindow
-        LoginWindow(self.root, self.db)
+        go_to_login(
+            self.root,
+            self.db,
+            self.frame
+        )

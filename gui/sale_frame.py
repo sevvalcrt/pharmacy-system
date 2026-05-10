@@ -7,8 +7,10 @@ from repositories.sales_repository import SaleRepository
 from repositories.prescription_repository import PrescriptionRepository
 from repositories.payment_repository import PaymentRepository
 from repositories.inventory_repository import InventoryRepository
+from repositories.customer_repository import CustomerRepository
 
 from services.sales_service import SalesService
+from gui.navigation import go_to_login, go_to_cashier_dashboard
 
 
 class SaleFrame:
@@ -23,6 +25,8 @@ class SaleFrame:
         payment_repo = PaymentRepository(self.db)
         inventory_repo = InventoryRepository(self.db)
 
+        self.customer_repo = CustomerRepository(self.db)
+
         self.sales_service = SalesService(
             medicine_repo,
             sale_repo,
@@ -32,6 +36,8 @@ class SaleFrame:
         )
 
         self.cart = []
+        self.prescription_map = {}
+        self.medicine_map = {}
 
         self.frame = tk.Frame(self.root, padx=10, pady=8)
         self.frame.pack(expand=True, fill="both")
@@ -62,15 +68,16 @@ class SaleFrame:
         form.pack(fill="x", pady=5)
 
         tk.Label(form, text="Prescription").grid(row=0, column=0, sticky="w", pady=3)
-        self.prescription_combo = ttk.Combobox(form, state="readonly", width=42)
+        self.prescription_combo = ttk.Combobox(form, state="readonly", width=45)
         self.prescription_combo.grid(row=0, column=1, pady=3)
+        self.prescription_combo.bind("<<ComboboxSelected>>", self.prescription_changed)
 
         tk.Label(form, text="Medicine").grid(row=1, column=0, sticky="w", pady=3)
-        self.medicine_combo = ttk.Combobox(form, state="readonly", width=42)
+        self.medicine_combo = ttk.Combobox(form, state="readonly", width=45)
         self.medicine_combo.grid(row=1, column=1, pady=3)
 
         tk.Label(form, text="Quantity").grid(row=2, column=0, sticky="w", pady=3)
-        self.qty_entry = tk.Entry(form, width=45)
+        self.qty_entry = tk.Entry(form, width=48)
         self.qty_entry.grid(row=2, column=1, pady=3)
 
         tk.Button(
@@ -79,6 +86,31 @@ class SaleFrame:
             width=18,
             command=self.add_item
         ).grid(row=3, column=0, columnspan=2, pady=6)
+
+        prescription_items_frame = tk.LabelFrame(
+            form,
+            text="Selected Prescription Items",
+            padx=8,
+            pady=6
+        )
+        prescription_items_frame.grid(row=0, column=2, rowspan=4, padx=15, sticky="n")
+
+        columns = ("medicine", "quantity")
+
+        self.prescription_items_table = ttk.Treeview(
+            prescription_items_frame,
+            columns=columns,
+            show="headings",
+            height=5
+        )
+
+        self.prescription_items_table.heading("medicine", text="Medicine")
+        self.prescription_items_table.heading("quantity", text="Allowed Qty")
+
+        self.prescription_items_table.column("medicine", width=170)
+        self.prescription_items_table.column("quantity", width=90, anchor="center")
+
+        self.prescription_items_table.pack()
 
     def create_table(self):
         table_frame = tk.LabelFrame(self.frame, text="Sale Items", padx=8, pady=6)
@@ -155,15 +187,56 @@ class SaleFrame:
         self.prescription_map = {"No Prescription": None}
 
         for prescription in prescriptions:
+            customer = self.customer_repo.get_by_id(prescription.customer_id)
+
+            if customer is not None:
+                customer_name = customer.full_name
+            else:
+                customer_name = f"Customer ID:{prescription.customer_id}"
+
             text = (
                 f"ID:{prescription.id} | "
-                f"Customer:{prescription.customer_id} | "
-                f"{prescription.doctor_name}"
+                f"{customer_name} | "
+                f"Doctor: {prescription.doctor_name}"
             )
+
             self.prescription_map[text] = prescription.id
 
         self.prescription_combo["values"] = list(self.prescription_map.keys())
         self.prescription_combo.current(0)
+        self.load_prescription_items(None)
+
+    def prescription_changed(self, event=None):
+        selected_prescription = self.prescription_combo.get()
+        prescription_id = self.prescription_map.get(selected_prescription)
+
+        self.load_prescription_items(prescription_id)
+
+    def load_prescription_items(self, prescription_id):
+        for row in self.prescription_items_table.get_children():
+            self.prescription_items_table.delete(row)
+
+        if prescription_id is None:
+            return
+
+        prescription = self.sales_service.get_prescription_by_id(prescription_id)
+
+        if prescription is None:
+            return
+
+        for item in prescription.items:
+            medicine = self.sales_service.medicine_repo.get_by_id(item.medicine_id)
+
+            if medicine is not None:
+                medicine_name = medicine.name
+            else:
+                medicine_name = f"Medicine ID:{item.medicine_id}"
+
+            self.prescription_items_table.insert(
+                "",
+                "end",
+                values=(medicine_name, item.quantity)
+            )
 
     def load_medicines(self):
         medicines = self.sales_service.get_all_medicines()
@@ -204,6 +277,7 @@ class SaleFrame:
             self.refresh_table()
             self.update_total()
             self.calculate_change()
+            self.payment_method_changed()
 
         except Exception as e:
             messagebox.showerror("Error", str(e))
@@ -243,7 +317,6 @@ class SaleFrame:
             self.change_label.config(text="Change: 0.00 TL")
         else:
             self.paid_entry.config(state="normal")
-            self.paid_entry.delete(0, tk.END)
             self.change_label.config(text="Change: 0.00 TL")
 
     def calculate_change(self, event=None):
@@ -307,22 +380,22 @@ class SaleFrame:
 
             messagebox.showinfo("Invoice", invoice.generate_text())
 
-            self.frame.destroy()
-
-            from gui.cashier_dashboard import CashierDashboard
-            CashierDashboard(self.root, self.user, self.db)
+            self.back()
 
         except Exception as e:
             messagebox.showerror("Error", str(e))
 
     def back(self):
-        self.frame.destroy()
-
-        from gui.cashier_dashboard import CashierDashboard
-        CashierDashboard(self.root, self.user, self.db)
+        go_to_cashier_dashboard(
+            self.root,
+            self.user,
+            self.db,
+            self.frame
+        )
 
     def logout(self):
-        self.frame.destroy()
-
-        from gui.login_window import LoginWindow
-        LoginWindow(self.root, self.db)
+        go_to_login(
+            self.root,
+            self.db,
+            self.frame
+        )

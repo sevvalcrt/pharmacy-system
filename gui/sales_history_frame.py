@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from repositories.sales_repository import SaleRepository
+from gui.navigation import go_to_login, go_to_cashier_dashboard
 
 
 class SalesHistoryFrame:
@@ -109,11 +110,16 @@ class SalesHistoryFrame:
             )
 
     def back(self):
-        self.frame.destroy()
-        from gui.cashier_dashboard import CashierDashboard
-        CashierDashboard(self.root, self.current_user, self.db)
+        go_to_cashier_dashboard(
+            self.root,
+            self.current_user,
+            self.db,
+            self.frame
+        )
 
     def logout(self):
-        self.frame.destroy()
-        from gui.login_window import LoginWindow
-        LoginWindow(self.root, self.db)
+        go_to_login(
+            self.root,
+            self.db,
+            self.frame
+        )
