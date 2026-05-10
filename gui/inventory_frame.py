@@ -2,9 +2,7 @@ import tkinter as tk
 from tkinter import messagebox
 from tkinter import ttk
 
-from inventory import Inventory
-from repositories.inventory_repository import InventoryRepository
-from repositories.medicine_repository import MedicineRepository
+from services.inventory_service import InventoryService
 
 
 class InventoryFrame:
@@ -12,9 +10,7 @@ class InventoryFrame:
         self.root = root
         self.current_user = current_user
         self.db = db
-
-        self.inventory_repo = InventoryRepository(self.db)
-        self.medicine_repo = MedicineRepository(self.db)
+        self.service = InventoryService(self.db)
 
         self.frame = tk.Frame(self.root, padx=20, pady=15)
         self.frame.pack(expand=True, fill="both")
@@ -73,7 +69,6 @@ class InventoryFrame:
         ).grid(row=4, column=0, columnspan=2, pady=5)
 
         columns = ("id", "medicine_id", "quantity", "action", "date")
-
         self.table = ttk.Treeview(right, columns=columns, show="headings")
 
         self.table.heading("id", text="ID")
@@ -94,28 +89,11 @@ class InventoryFrame:
 
     def add_movement(self):
         try:
-            medicine_id = int(self.medicine_id_entry.get())
-            quantity_change = int(self.quantity_entry.get())
-            action_type = self.action_combo.get()
-
-            medicine = self.medicine_repo.get_by_id(medicine_id)
-
-            if medicine is None:
-                messagebox.showerror("Error", "Medicine not found.")
-                return
-
-            inventory = Inventory(
-                None,
-                medicine_id,
-                quantity_change,
-                action_type
+            self.service.add_movement(
+                self.medicine_id_entry.get(),
+                self.quantity_entry.get(),
+                self.action_combo.get()
             )
-
-            new_stock = inventory.apply_to_stock(medicine.stock)
-            medicine.stock = new_stock
-
-            self.medicine_repo.update(medicine.id, medicine)
-            self.inventory_repo.add(inventory)
 
             messagebox.showinfo("Success", "Inventory movement added.")
             self.clear_inputs()
@@ -128,7 +106,7 @@ class InventoryFrame:
         for row in self.table.get_children():
             self.table.delete(row)
 
-        for item in self.inventory_repo.get_all():
+        for item in self.service.get_all_movements():
             self.table.insert(
                 "",
                 "end",
@@ -155,9 +133,10 @@ class InventoryFrame:
             return
 
         try:
-            self.inventory_repo.remove_by_id(movement_id)
+            self.service.delete_movement(movement_id)
             messagebox.showinfo("Success", "Inventory record deleted.")
             self.load_data()
+
         except Exception as e:
             messagebox.showerror("Error", str(e))
 

@@ -2,8 +2,7 @@ import tkinter as tk
 from tkinter import messagebox
 from tkinter import ttk
 
-from User import User
-from repositories.user_repository import UserRepository
+from services.user_service import UserService
 
 
 class UserFrame:
@@ -11,12 +10,21 @@ class UserFrame:
         self.root = root
         self.current_user = current_user
         self.db = db
-        self.user_repo = UserRepository(self.db)
+
+        self.service = UserService(self.db)
 
         self.frame = tk.Frame(self.root)
         self.frame.pack(expand=True, fill="both")
 
-        # 🔹 TOP BAR (sol üst)
+        self.create_top_bar()
+        self.create_title()
+        self.create_form()
+        self.create_buttons()
+        self.create_table()
+
+        self.load_users()
+
+    def create_top_bar(self):
         top_bar = tk.Frame(self.frame)
         top_bar.pack(anchor="nw", padx=10, pady=10)
 
@@ -34,14 +42,14 @@ class UserFrame:
             command=self.logout
         ).grid(row=0, column=1, padx=3)
 
-        # 🔹 Başlık
+    def create_title(self):
         tk.Label(
             self.frame,
             text="Manage Users",
             font=("Arial", 18, "bold")
         ).pack(pady=10)
 
-        # 🔹 Form
+    def create_form(self):
         form_frame = tk.Frame(self.frame)
         form_frame.pack(pady=10)
 
@@ -67,7 +75,7 @@ class UserFrame:
         self.role_combo.grid(row=3, column=1, padx=5, pady=5)
         self.role_combo.current(2)
 
-        # 🔹 Butonlar
+    def create_buttons(self):
         button_frame = tk.Frame(self.frame)
         button_frame.pack(pady=5)
 
@@ -85,8 +93,9 @@ class UserFrame:
             command=self.delete_selected_user
         ).grid(row=0, column=1, padx=5)
 
-        # 🔹 Tablo
+    def create_table(self):
         columns = ("id", "full_name", "username", "role")
+
         self.user_table = ttk.Treeview(
             self.frame,
             columns=columns,
@@ -106,41 +115,16 @@ class UserFrame:
 
         self.user_table.pack(pady=10)
 
-        self.load_users()
-
-    # 🔹 Role dönüşümleri
-    def role_text_to_id(self, role_text):
-        if role_text == "Admin":
-            return 1
-        elif role_text == "Pharmacist":
-            return 2
-        elif role_text == "Cashier":
-            return 3
-        return 3
-
-    def role_id_to_text(self, role_id):
-        if role_id == 1:
-            return "Admin"
-        elif role_id == 2:
-            return "Pharmacist"
-        elif role_id == 3:
-            return "Cashier"
-        return "Unknown"
-
-    # 🔹 Kullanıcı ekleme
     def add_user(self):
         try:
-            full_name = self.full_name_entry.get()
-            username = self.username_entry.get()
-            password = self.password_entry.get()
-            role_id = self.role_text_to_id(self.role_combo.get())
+            role_id = self.service.role_text_to_id(self.role_combo.get())
 
-            if self.user_repo.get_by_username(username) is not None:
-                messagebox.showerror("Error", "Username already exists.")
-                return
-
-            user = User(None, full_name, username, password, role_id)
-            self.user_repo.add(user)
+            self.service.create_user(
+                self.full_name_entry.get(),
+                self.username_entry.get(),
+                self.password_entry.get(),
+                role_id
+            )
 
             messagebox.showinfo("Success", "User added.")
             self.clear_inputs()
@@ -149,12 +133,11 @@ class UserFrame:
         except Exception as e:
             messagebox.showerror("Error", str(e))
 
-    # 🔹 Listeleme
     def load_users(self):
         for row in self.user_table.get_children():
             self.user_table.delete(row)
 
-        users = self.user_repo.get_all()
+        users = self.service.get_all_users()
 
         for user in users:
             self.user_table.insert(
@@ -164,11 +147,10 @@ class UserFrame:
                     user.id,
                     user.full_name,
                     user.username,
-                    self.role_id_to_text(user.role_id)
+                    self.service.role_id_to_text(user.role_id)
                 )
             )
 
-    # 🔹 Silme
     def delete_selected_user(self):
         selected = self.user_table.selection()
 
@@ -179,36 +161,32 @@ class UserFrame:
         values = self.user_table.item(selected[0], "values")
         user_id = int(values[0])
 
-        if user_id == self.current_user.id:
-            messagebox.showerror("Error", "You cannot delete yourself.")
-            return
-
         confirm = messagebox.askyesno("Confirm", "Delete this user?")
         if not confirm:
             return
 
         try:
-            self.user_repo.remove_by_id(user_id)
+            self.service.delete_user(user_id, self.current_user.id)
             messagebox.showinfo("Success", "User deleted.")
             self.load_users()
+
         except Exception as e:
             messagebox.showerror("Error", str(e))
 
-    # 🔹 Input temizleme (arka planda kullanılıyor)
     def clear_inputs(self):
         self.full_name_entry.delete(0, tk.END)
         self.username_entry.delete(0, tk.END)
         self.password_entry.delete(0, tk.END)
         self.role_combo.current(2)
 
-    # 🔹 Back
     def back(self):
         self.frame.destroy()
+
         from gui.admin_dashboard import AdminDashboard
         AdminDashboard(self.root, self.current_user, self.db)
 
-    # 🔹 Logout
     def logout(self):
         self.frame.destroy()
+
         from gui.login_window import LoginWindow
         LoginWindow(self.root, self.db)

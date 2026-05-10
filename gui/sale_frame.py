@@ -17,18 +17,18 @@ class SaleFrame:
         self.user = user
         self.db = db
 
-        self.medicine_repo = MedicineRepository(self.db)
-        self.sale_repo = SaleRepository(self.db)
-        self.prescription_repo = PrescriptionRepository(self.db)
-        self.payment_repo = PaymentRepository(self.db)
-        self.inventory_repo = InventoryRepository(self.db)
+        medicine_repo = MedicineRepository(self.db)
+        sale_repo = SaleRepository(self.db)
+        prescription_repo = PrescriptionRepository(self.db)
+        payment_repo = PaymentRepository(self.db)
+        inventory_repo = InventoryRepository(self.db)
 
         self.sales_service = SalesService(
-            self.medicine_repo,
-            self.sale_repo,
-            self.prescription_repo,
-            self.payment_repo,
-            self.inventory_repo
+            medicine_repo,
+            sale_repo,
+            prescription_repo,
+            payment_repo,
+            inventory_repo
         )
 
         self.cart = []
@@ -151,22 +151,27 @@ class SaleFrame:
         ).grid(row=0, column=5, padx=6)
 
     def load_prescriptions(self):
-        prescriptions = self.prescription_repo.get_all()
+        prescriptions = self.sales_service.get_all_prescriptions()
         self.prescription_map = {"No Prescription": None}
 
-        for p in prescriptions:
-            text = f"ID:{p.id} | Customer:{p.customer_id} | {p.doctor_name}"
-            self.prescription_map[text] = p.id
+        for prescription in prescriptions:
+            text = (
+                f"ID:{prescription.id} | "
+                f"Customer:{prescription.customer_id} | "
+                f"{prescription.doctor_name}"
+            )
+            self.prescription_map[text] = prescription.id
 
         self.prescription_combo["values"] = list(self.prescription_map.keys())
         self.prescription_combo.current(0)
 
     def load_medicines(self):
-        medicines = self.medicine_repo.get_all()
+        medicines = self.sales_service.get_all_medicines()
 
         self.medicine_map = {
-            f"{m.name} (ID:{m.id}) | Rx:{'Yes' if m.requires_prescription else 'No'}": m
-            for m in medicines
+            f"{medicine.name} (ID:{medicine.id}) | "
+            f"Rx:{'Yes' if medicine.requires_prescription else 'No'}": medicine
+            for medicine in medicines
         }
 
         self.medicine_combo["values"] = list(self.medicine_map.keys())
