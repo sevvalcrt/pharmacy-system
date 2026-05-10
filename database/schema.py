@@ -114,10 +114,12 @@ def initialize_schema(db_manager: DatabaseManager | None = None) -> None:
             CREATE TABLE IF NOT EXISTS inventory (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 medicine_id INTEGER NOT NULL,
+                sale_id INTEGER,
                 quantity_change INTEGER NOT NULL CHECK (quantity_change != 0),
                 action_type TEXT NOT NULL CHECK (action_type IN ('IN', 'OUT', 'RETURN', 'ADJUST')),
                 action_date TEXT NOT NULL,
-                FOREIGN KEY (medicine_id) REFERENCES medicines(id)
+                FOREIGN KEY (medicine_id) REFERENCES medicines(id),
+                FOREIGN KEY (sale_id) REFERENCES sales(id)
             )
         """)
 
